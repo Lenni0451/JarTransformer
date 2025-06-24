@@ -4,14 +4,12 @@ import net.lenni0451.jartransformer.transformers.Transformer;
 import net.lenni0451.jartransformer.utils.Repackager;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
-import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.Input;
 import org.slf4j.Logger;
 
 import javax.inject.Inject;
 import java.nio.file.FileSystem;
 import java.util.Map;
-import java.util.Set;
 
 public abstract class RepackageTransformer implements Transformer {
 
@@ -19,7 +17,8 @@ public abstract class RepackageTransformer implements Transformer {
     public RepackageTransformer(final String name) {
         this.getName().set(name);
         this.getRelocations().convention(Map.of());
-        this.getRemovals().convention(Set.of());
+        this.getRemapClasses().convention(true);
+        this.getMoveFiles().convention(true);
         this.getRemapStrings().convention(false);
         this.getRemapServices().convention(true);
         this.getRemapManifest().convention(true);
@@ -32,7 +31,10 @@ public abstract class RepackageTransformer implements Transformer {
     public abstract MapProperty<String, String> getRelocations();
 
     @Input
-    public abstract SetProperty<String> getRemovals();
+    public abstract Property<Boolean> getRemapClasses();
+
+    @Input
+    public abstract Property<Boolean> getMoveFiles();
 
     @Input
     public abstract Property<Boolean> getRemapStrings();
@@ -52,7 +54,8 @@ public abstract class RepackageTransformer implements Transformer {
                 .logger(log)
                 .fileSystem(fileSystem)
                 .relocations(this.getRelocations().get())
-                .removals(this.getRemovals().get())
+                .remapClasses(this.getRemapClasses().get())
+                .moveFiles(this.getMoveFiles().get())
                 .remapStrings(this.getRemapStrings().get())
                 .remapServices(this.getRemapServices().get())
                 .remapManifest(this.getRemapManifest().get())

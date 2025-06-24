@@ -11,10 +11,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Builder
@@ -24,7 +26,8 @@ public class Repackager {
     private final Logger logger;
     private final FileSystem fileSystem;
     private final Map<String, String> relocations;
-    private final Set<String> removals;
+    private final boolean remapClasses;
+    private final boolean moveFiles;
     private final boolean remapStrings;
     private final boolean remapServices;
     private final boolean remapManifest;
@@ -33,7 +36,6 @@ public class Repackager {
     public void run() throws Throwable {
         PackageRemapper remapper = new PackageRemapper(this.relocations);
         if (!this.relocations.isEmpty()) this.remap(this.fileSystem, remapper);
-        if (!this.removals.isEmpty()) this.removeRemovals(this.fileSystem);
         if (this.removeEmptyDirs) this.removeEmptyDirectories(this.fileSystem);
     }
 
@@ -47,11 +49,13 @@ public class Repackager {
                     boolean slash = pathString.startsWith("/");
                     if (slash) pathString = pathString.substring(1);
                     if (path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".class")) {
-                        byte[] bytes = Files.readAllBytes(path);
-                        ClassNode node = ASMUtils.remap(ASMUtils.fromBytes(bytes), remapper);
-                        if (this.remapStrings) this.remapStrings(node, remapper);
-                        Files.write(path, ASMUtils.toBytes(node));
-                        this.logger.debug("Remapped class: {}", path);
+                        if (this.remapClasses) {
+                            byte[] bytes = Files.readAllBytes(path);
+                            ClassNode node = ASMUtils.remap(ASMUtils.fromBytes(bytes), remapper);
+                            if (this.remapStrings) this.remapStrings(node, remapper);
+                            Files.write(path, ASMUtils.toBytes(node));
+                            this.logger.debug("Remapped class: {}", path);
+                        }
                     } else if (pathString.toLowerCase(Locale.ROOT).startsWith("meta-inf/")) {
                         if (this.remapServices && pathString.toLowerCase(Locale.ROOT).startsWith("meta-inf/services/")) {
                             String serviceName = path.toString().substring(19);
@@ -105,55 +109,31 @@ public class Repackager {
                         }
                     }
 
-                    if (pathString.toLowerCase(Locale.ROOT).startsWith("meta-inf/versions/")) {
-                        String prefix = pathString.substring(0, pathString.indexOf('/', 18) + 1);
-                        String suffix = pathString.substring(pathString.indexOf('/', 18) + 1);
-                        String remappedSuffix = remapper.mapUnchecked(suffix);
-                        if (remappedSuffix != null && !suffix.equals(remappedSuffix)) {
-                            Path newPath = fileSystem.getPath((slash ? "/" : "") + prefix + remappedSuffix);
-                            Files.createDirectories(newPath.getParent());
-                            Files.move(path, newPath);
-                            this.logger.debug("Remapped versioned file: {} -> {}", path, newPath);
-                        }
-                    } else {
-                        String remappedPath = remapper.mapUnchecked(pathString);
-                        if (remappedPath != null && !pathString.equals(remappedPath)) {
-                            Path newPath = fileSystem.getPath((slash ? "/" : "") + remappedPath);
-                            Files.createDirectories(newPath.getParent());
-                            Files.move(path, newPath);
-                            this.logger.debug("Remapped file: {} -> {}", path, newPath);
+                    if (this.moveFiles) {
+                        if (pathString.toLowerCase(Locale.ROOT).startsWith("meta-inf/versions/")) {
+                            String prefix = pathString.substring(0, pathString.indexOf('/', 18) + 1);
+                            String suffix = pathString.substring(pathString.indexOf('/', 18) + 1);
+                            String remappedSuffix = remapper.mapUnchecked(suffix);
+                            if (remappedSuffix != null && !suffix.equals(remappedSuffix)) {
+                                Path newPath = fileSystem.getPath((slash ? "/" : "") + prefix + remappedSuffix);
+                                Files.createDirectories(newPath.getParent());
+                                Files.move(path, newPath);
+                                this.logger.debug("Remapped versioned file: {} -> {}", path, newPath);
+                            }
+                        } else {
+                            String remappedPath = remapper.mapUnchecked(pathString);
+                            if (remappedPath != null && !pathString.equals(remappedPath)) {
+                                Path newPath = fileSystem.getPath((slash ? "/" : "") + remappedPath);
+                                Files.createDirectories(newPath.getParent());
+                                Files.move(path, newPath);
+                                this.logger.debug("Remapped file: {} -> {}", path, newPath);
+                            }
                         }
                     }
                 } catch (Throwable t) {
                     throw new IllegalStateException("Failed to remap file: " + path, t);
                 }
             });
-        }
-    }
-
-    private void removeRemovals(final FileSystem fileSystem) throws IOException {
-        List<Path> toRemove;
-        try (Stream<Path> paths = Files.walk(fileSystem.getPath("/"))) {
-            toRemove = paths.filter(path -> {
-                String pathString = path.toString().toLowerCase(Locale.ROOT);
-                if (pathString.startsWith("/")) pathString = pathString.substring(1);
-                for (String s : this.removals) {
-                    if (pathString.startsWith(s.toLowerCase(Locale.ROOT))) {
-                        return true;
-                    }
-                }
-                return false;
-            }).collect(Collectors.toList());
-        }
-        for (Path path : toRemove) {
-            try {
-                if (!Files.exists(path)) continue;
-
-                Files.walkFileTree(path, new DeletingFileVisitor());
-                this.logger.debug("Removed file: {}", path);
-            } catch (Throwable t) {
-                throw new IllegalStateException("Failed to remove file: " + path, t);
-            }
         }
     }
 
