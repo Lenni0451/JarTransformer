@@ -1,6 +1,7 @@
 package net.lenni0451.jartransformer.transformers.base;
 
 import net.lenni0451.jartransformer.transformers.Transformer;
+import net.lenni0451.jartransformer.transformers.impl.ExcludeTransformer;
 import net.lenni0451.jartransformer.transformers.impl.RepackageTransformer;
 import org.gradle.api.Action;
 import org.gradle.api.model.ObjectFactory;
@@ -30,11 +31,19 @@ public abstract class BaseTransformer {
     }
 
     public void repackage(final Action<? super RepackageTransformer> action) {
+        this.add("repackageTransformer", RepackageTransformer.class, action);
+    }
+
+    public void exclude(final Action<? super ExcludeTransformer> action) {
+        this.add("excludeTransformer", ExcludeTransformer.class, action);
+    }
+
+    private <T extends Transformer> void add(final String name, final Class<T> type, final Action<? super T> action) {
         List<Transformer> transformers = new ArrayList<>(this.getTransformers().get());
-        RepackageTransformer repackageTransformer = this.objectFactory.newInstance(RepackageTransformer.class, "repackageTransformer" + transformers.size());
-        transformers.add(repackageTransformer);
+        T transformer = this.objectFactory.newInstance(type, name + transformers.size());
+        transformers.add(transformer);
         this.getTransformers().set(transformers);
-        action.execute(repackageTransformer);
+        action.execute(transformer);
     }
 
 }

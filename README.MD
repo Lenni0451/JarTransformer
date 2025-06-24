@@ -86,3 +86,32 @@ repackage {
     removeEmptyDirs = false // Default: false
 }
 ```
+
+### ExcludeTransformer
+This transformer can be used to exclude files from the jar file.
+```groovy
+exclude {
+    // The files to exclude from the jar file
+    // A file is removed if its path starts with one of the specified paths
+    // The paths are relative to the root of the jar file
+    excludes = [
+        // Exclude all files in the "META-INF" directory
+        "META-INF",
+        // Exclude all files in the "com/example" package
+        "com/example",
+    ]
+
+    // A list of regex patterns to match files against
+    // The entire path of the file needs to match the regex pattern
+    regexExcludes = [
+        // Exclude all files containing "Test" in their name
+        ".*Test.*",
+        // Exclude all files ending with ".class"
+        ".*\\.class$",
+    ]
+
+    // Reverse the exclusion logic
+    // If set to true, only files that do not match the excludes or regexExcludes will be kept
+    reversed = false // Default: false
+}
+```

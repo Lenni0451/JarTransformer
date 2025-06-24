@@ -11,11 +11,11 @@ import javax.inject.Inject;
 import java.nio.file.FileSystem;
 import java.util.Map;
 
-public abstract class RepackageTransformer implements Transformer {
+public abstract class RepackageTransformer extends Transformer {
 
     @Inject
     public RepackageTransformer(final String name) {
-        this.getName().set(name);
+        super(name);
         this.getRelocations().convention(Map.of());
         this.getRemapClasses().convention(true);
         this.getMoveFiles().convention(true);
@@ -24,8 +24,6 @@ public abstract class RepackageTransformer implements Transformer {
         this.getRemapManifest().convention(true);
         this.getRemoveEmptyDirs().convention(false);
     }
-
-    public abstract Property<String> getName();
 
     @Input
     public abstract MapProperty<String, String> getRelocations();
