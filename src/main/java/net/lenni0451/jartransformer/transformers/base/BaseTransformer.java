@@ -1,6 +1,7 @@
 package net.lenni0451.jartransformer.transformers.base;
 
 import net.lenni0451.jartransformer.transformers.Transformer;
+import net.lenni0451.jartransformer.transformers.impl.AccessTransformer;
 import net.lenni0451.jartransformer.transformers.impl.ExcludeTransformer;
 import net.lenni0451.jartransformer.transformers.impl.RepackageTransformer;
 import org.gradle.api.Action;
@@ -36,6 +37,10 @@ public abstract class BaseTransformer {
 
     public void exclude(final Action<? super ExcludeTransformer> action) {
         this.add("excludeTransformer", ExcludeTransformer.class, action);
+    }
+
+    public void access(final Action<? super AccessTransformer> action) {
+        this.add("accessTransformer", AccessTransformer.class, action);
     }
 
     private <T extends Transformer> void add(final String name, final Class<T> type, final Action<? super T> action) {

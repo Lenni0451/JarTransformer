@@ -115,3 +115,35 @@ exclude {
     reversed = false // Default: false
 }
 ```
+
+### AccessTransformer
+This transformer can be used to make classes, fields and methods accessible/mutable.
+```groovy
+access {
+    // The classes, fields and methods to make public
+    accessible = [
+        // Make the class "org.example.MyClass" public
+        "org/example/MyClass",
+        "Lorg/example/MyClass;",
+        // Make the field "org.example.MyClass#myField" public
+        "org/example/MyClass.myField:I",
+        "Lorg/example/MyClass;myField:I",
+        // Make the method "org.example.MyClass#myMethod()" public
+        "org/example/MyClass.myMethod()V",
+        "Lorg/example/MyClass;myMethod()V",
+    ]
+
+    // The classes, fields and methods to make mutable (non-final)
+    mutable = [
+        // Make the class "org.example.MyClass" mutable
+        "org/example/MyClass",
+        "Lorg/example/MyClass;",
+        // Make the field "org.example.MyClass#myField" mutable
+        "org/example/MyClass.myField:I",
+        "Lorg/example/MyClass;myField:I",
+        // Make the method "org.example.MyClass#myMethod()" mutable
+        "org/example/MyClass.myMethod()V",
+        "Lorg/example/MyClass;myMethod()V",
+    ]
+}
+```

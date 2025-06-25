@@ -2,6 +2,8 @@ package net.lenni0451.jartransformer.utils;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import net.lenni0451.commons.asm.io.ClassIO;
+import net.lenni0451.commons.asm.mappings.Remapper;
 import org.objectweb.asm.tree.*;
 import org.slf4j.Logger;
 
@@ -51,9 +53,9 @@ public class Repackager {
                     if (path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".class")) {
                         if (this.remapClasses) {
                             byte[] bytes = Files.readAllBytes(path);
-                            ClassNode node = ASMUtils.remap(ASMUtils.fromBytes(bytes), remapper);
+                            ClassNode node = Remapper.remap(ClassIO.fromBytes(bytes), remapper);
                             if (this.remapStrings) this.remapStrings(node, remapper);
-                            Files.write(path, ASMUtils.toBytes(node));
+                            Files.write(path, ClassIO.toStacklessBytes(node));
                             this.logger.debug("Remapped class: {}", path);
                         }
                     } else if (pathString.toLowerCase(Locale.ROOT).startsWith("meta-inf/")) {

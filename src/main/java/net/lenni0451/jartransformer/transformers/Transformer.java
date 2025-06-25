@@ -14,7 +14,12 @@ public abstract class Transformer {
     public static void applyAll(final Logger log, final File file, final List<Transformer> transformers) throws Throwable {
         try (FileSystem fileSystem = FileSystems.newFileSystem(file.toPath(), new HashMap<>())) {
             for (Transformer transformer : transformers) {
-                transformer.transform(log, fileSystem);
+                try {
+                    transformer.transform(log, fileSystem);
+                } catch (Throwable t) {
+                    log.error("Failed to apply transformer: {}", transformer.getName().get(), t);
+                    throw t; // Re-throw the exception to stop the transformation process
+                }
             }
         }
     }
