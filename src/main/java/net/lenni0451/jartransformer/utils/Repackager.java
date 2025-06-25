@@ -13,10 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import java.util.stream.Stream;
@@ -27,6 +24,8 @@ public class Repackager {
 
     private final Logger logger;
     private final FileSystem fileSystem;
+    private final Set<String> whitelist;
+    private final Set<String> blacklist;
     private final Map<String, String> relocations;
     private final boolean remapClasses;
     private final boolean moveFiles;
@@ -50,6 +49,7 @@ public class Repackager {
                     String pathString = path.toString();
                     boolean slash = pathString.startsWith("/");
                     if (slash) pathString = pathString.substring(1);
+                    if (!this.shouldProcess(pathString)) return;
                     if (path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".class")) {
                         if (this.remapClasses) {
                             byte[] bytes = Files.readAllBytes(path);
@@ -137,6 +137,26 @@ public class Repackager {
                 }
             });
         }
+    }
+
+    private boolean shouldProcess(final String pathString) {
+        if (this.whitelist.isEmpty() && this.blacklist.isEmpty()) return true;
+        if (!this.blacklist.isEmpty()) {
+            for (String s : this.blacklist) {
+                if (pathString.startsWith(s)) {
+                    return false; //If any blacklist entry matches, don't process
+                }
+            }
+        }
+        if (!this.whitelist.isEmpty()) {
+            for (String s : this.whitelist) {
+                if (pathString.startsWith(s)) {
+                    return true;
+                }
+            }
+            return false; //If no whitelist entry matches, don't process
+        }
+        return true; //If the whitelist is empty, and it's not blacklisted, process the file
     }
 
     private void removeEmptyDirectories(final FileSystem fileSystem) throws IOException {

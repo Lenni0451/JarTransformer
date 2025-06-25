@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -35,6 +36,8 @@ public abstract class AccessTransformer extends Transformer {
     @Inject
     public AccessTransformer(final String name) {
         super(name);
+        this.getAccessible().convention(Set.of());
+        this.getMutable().convention(Set.of());
     }
 
     @Input

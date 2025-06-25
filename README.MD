@@ -46,9 +46,26 @@ The order of the transformers is the order in which they are registered.
 
 ## Transformers
 ### RepackageTransformer
-This transformer can be used to remap packages in the jar file. It supports remapping of classes, strings, services and the manifest.
+This transformer can be used to remap packages in the jar file. It supports remapping of classes, strings, services and the manifest.\
+The whitelist and blacklist can be mixed to control which files are transformed.
 ```groovy
 repackage {
+    // Whitelist of paths to transform
+    whitelist = [
+        // Only transform files in the "com/example" package
+        "com/example",
+        // Only transform files in the "META-INF/services" directory
+        "META-INF/services",
+    ]
+
+    // Blacklist of paths to not transform
+    blacklist = [
+        // Do not transform files in the "com/example/internal" package
+        "com/example/internal",
+        // Do not transform files in the "META-INF" directory
+        "META-INF",
+    ]
+
     // The relocations to apply
     relocations = [
         // Remap all classes in packages starting with "com.example" to "repackaged.com.example"
