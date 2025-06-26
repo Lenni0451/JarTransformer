@@ -16,7 +16,6 @@ import org.slf4j.Logger;
 import javax.inject.Inject;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -24,7 +23,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 @Slf4j
 public abstract class AccessTransformer extends Transformer {
@@ -111,29 +109,22 @@ public abstract class AccessTransformer extends Transformer {
             }
             throw new IllegalArgumentException("Invalid mutable target: " + s);
         }
-        try (Stream<Path> paths = Files.walk(fileSystem.getPath("/"))) {
-            paths.forEach(path -> {
-                try {
-                    if (!Files.isRegularFile(path)) return;
-                    if (path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".class")) {
-                        byte[] bytes = Files.readAllBytes(path);
-                        ClassNode node = ClassIO.fromBytes(bytes);
-                        boolean modified = false;
-                        for (ClassMutator target : targets) {
-                            if (!target.className().equals(node.name)) continue;
-                            target.mutate(node);
-                            modified = true;
-                        }
-                        if (modified) {
-                            Files.write(path, ClassIO.toStacklessBytes(node));
-                            log.debug("Processed access transformer for class: {}", path);
-                        }
-                    }
-                } catch (Throwable t) {
-                    throw new IllegalStateException("Failed to process file: " + path, t);
+        this.iterateFiles(fileSystem, path -> {
+            if (path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".class")) {
+                byte[] bytes = Files.readAllBytes(path);
+                ClassNode node = ClassIO.fromBytes(bytes);
+                boolean modified = false;
+                for (ClassMutator target : targets) {
+                    if (!target.className().equals(node.name)) continue;
+                    target.mutate(node);
+                    modified = true;
                 }
-            });
-        }
+                if (modified) {
+                    Files.write(path, ClassIO.toStacklessBytes(node));
+                    log.debug("Processed access transformer for class: {}", path);
+                }
+            }
+        });
     }
 
 

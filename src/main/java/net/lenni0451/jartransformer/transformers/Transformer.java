@@ -1,13 +1,18 @@
 package net.lenni0451.jartransformer.transformers;
 
+import net.lenni0451.jartransformer.utils.ThrowingConsumer;
 import org.gradle.api.provider.Property;
 import org.slf4j.Logger;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Stream;
 
 public abstract class Transformer {
 
@@ -32,5 +37,18 @@ public abstract class Transformer {
     public abstract Property<String> getName();
 
     public abstract void transform(final Logger log, final FileSystem fileSystem) throws Throwable;
+
+    protected final void iterateFiles(final FileSystem fileSystem, final ThrowingConsumer<Path> consumer) throws IOException {
+        try (Stream<Path> paths = Files.walk(fileSystem.getPath("/"))) {
+            paths.forEach(path -> {
+                try {
+                    if (!Files.isRegularFile(path)) return;
+                    consumer.accept(path);
+                } catch (Throwable t) {
+                    throw new IllegalStateException("Failed to process file: " + path, t);
+                }
+            });
+        }
+    }
 
 }

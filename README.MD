@@ -168,3 +168,16 @@ access {
     ]
 }
 ```
+
+### StringReplaceTransformer
+This transformer can be used to replace strings in the jar file.
+```groovy
+stringReplace {
+    // The placeholders to replace in the jar file
+    // Strings are replaced by iterating over the replacements map and replacing each key with its value
+    // The order of the replacements is not guaranteed, so do not rely on it
+    replacements = [
+        "${version}": project.version // Replace the placeholder "${version}" with the project version
+    ]
+}
+```

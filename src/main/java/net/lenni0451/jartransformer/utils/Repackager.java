@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import net.lenni0451.commons.asm.io.ClassIO;
 import net.lenni0451.commons.asm.mappings.Remapper;
-import org.objectweb.asm.tree.*;
+import org.objectweb.asm.tree.ClassNode;
 import org.slf4j.Logger;
 
 import java.io.ByteArrayOutputStream;
@@ -55,7 +55,9 @@ public class Repackager {
                         if (this.remapClasses) {
                             byte[] bytes = Files.readAllBytes(path);
                             ClassNode node = Remapper.remap(ClassIO.fromBytes(bytes), remapper);
-                            if (this.remapStrings) this.remapStrings(node, remapper);
+                            if (this.remapStrings) {
+                                ASMUtils.mutateStrings(node, s -> ASMUtils.remap(remapper, s));
+                            }
                             Files.write(path, ClassIO.toStacklessBytes(node));
                             this.logger.debug("Remapped class: {}", path);
                         }
@@ -193,23 +195,6 @@ public class Repackager {
                     throw new IllegalStateException("Failed to remove empty directory: " + path, t);
                 }
             });
-        }
-    }
-
-    private void remapStrings(final ClassNode node, final PackageRemapper remapper) {
-        for (FieldNode field : node.fields) {
-            if (field.value instanceof String s) {
-                s = ASMUtils.remap(remapper, s);
-                if (s != null) field.value = s;
-            }
-        }
-        for (MethodNode method : node.methods) {
-            for (AbstractInsnNode instruction : method.instructions) {
-                if (instruction instanceof LdcInsnNode ldc && ldc.cst instanceof String s) {
-                    s = ASMUtils.remap(remapper, s);
-                    if (s != null) ldc.cst = s;
-                }
-            }
         }
     }
 
