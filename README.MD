@@ -101,6 +101,10 @@ repackage {
     // Removing them is not required, but can help to reduce the size of the jar file and make it cleaner
     // This also removes empty directories which are not part of the relocations
     removeEmptyDirs = false // Default: false
+
+    // Whether to remap log4j plugin classes
+    // This is only required when repackaging log4j itself
+    remapLog4jPlugins = true; // Default: true
 }
 ```
 

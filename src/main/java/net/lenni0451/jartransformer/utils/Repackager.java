@@ -33,6 +33,7 @@ public class Repackager {
     private final boolean remapServices;
     private final boolean remapManifest;
     private final boolean removeEmptyDirs;
+    private final boolean remapLog4jPlugins;
 
     public void run() throws Throwable {
         PackageRemapper remapper = new PackageRemapper(this.relocations);
@@ -76,7 +77,7 @@ public class Repackager {
                                 }
                             }
                             if (modified) {
-                                Files.write(path, String.join("\n", remappedServiceImpls).getBytes(StandardCharsets.UTF_8));
+                                Files.writeString(path, String.join("\n", remappedServiceImpls));
                                 this.logger.info("Remapped service implementations: {} -> {}", String.join(", ", serviceImpls), String.join(", ", remappedServiceImpls));
                             }
                             if (remappedServiceName != null && !serviceName.equals(remappedServiceName)) {
@@ -107,6 +108,25 @@ public class Repackager {
                                 manifest.write(baos);
                                 Files.write(path, baos.toByteArray());
                                 this.logger.info("Remapped manifest: {}", path);
+                            }
+                        } else if (this.remapLog4jPlugins && pathString.toLowerCase(Locale.ROOT).equals("meta-inf/org/apache/logging/log4j/core/config/plugins/log4j2plugins.dat")) {
+                            Log4JPluginCache pluginCache = Log4JPluginCache.deserialize(Files.readAllBytes(path));
+                            boolean modified = false;
+                            for (String category : pluginCache.getCategories()) {
+                                Map<String, Log4JPluginCache.PluginEntry> plugins = pluginCache.getCategory(category);
+                                for (Log4JPluginCache.PluginEntry plugin : plugins.values()) {
+                                    String className = plugin.getClassName();
+                                    String remappedName = ASMUtils.remap(remapper, className);
+                                    if (remappedName != null && !className.equals(remappedName)) {
+                                        plugin.setClassName(remappedName);
+                                        modified = true;
+                                        this.logger.debug("Remapped Log4J plugin class: {} -> {}", className, remappedName);
+                                    }
+                                }
+                            }
+                            if (modified) {
+                                Files.write(path, pluginCache.serialize());
+                                this.logger.info("Remapped Log4J plugins: {}", path);
                             }
                         }
                     }
@@ -178,21 +198,16 @@ public class Repackager {
 
     private void remapStrings(final ClassNode node, final PackageRemapper remapper) {
         for (FieldNode field : node.fields) {
-            if (field.value instanceof String) {
-                String s = (String) field.value; //Field default values
+            if (field.value instanceof String s) {
                 s = ASMUtils.remap(remapper, s);
                 if (s != null) field.value = s;
             }
         }
         for (MethodNode method : node.methods) {
             for (AbstractInsnNode instruction : method.instructions) {
-                if (instruction instanceof LdcInsnNode) {
-                    LdcInsnNode ldc = (LdcInsnNode) instruction;
-                    if (ldc.cst instanceof String) {
-                        String s = (String) ldc.cst;
-                        s = ASMUtils.remap(remapper, s);
-                        if (s != null) ldc.cst = s;
-                    }
+                if (instruction instanceof LdcInsnNode ldc && ldc.cst instanceof String s) {
+                    s = ASMUtils.remap(remapper, s);
+                    if (s != null) ldc.cst = s;
                 }
             }
         }

@@ -27,6 +27,7 @@ public abstract class RepackageTransformer extends Transformer {
         this.getRemapServices().convention(true);
         this.getRemapManifest().convention(true);
         this.getRemoveEmptyDirs().convention(false);
+        this.getRemapLog4jPlugins().convention(true);
     }
 
     @Input
@@ -56,6 +57,9 @@ public abstract class RepackageTransformer extends Transformer {
     @Input
     public abstract Property<Boolean> getRemoveEmptyDirs();
 
+    @Input
+    public abstract Property<Boolean> getRemapLog4jPlugins();
+
     @Override
     public void transform(Logger log, FileSystem fileSystem) throws Throwable {
         Repackager.builder()
@@ -70,6 +74,7 @@ public abstract class RepackageTransformer extends Transformer {
                 .remapServices(this.getRemapServices().get())
                 .remapManifest(this.getRemapManifest().get())
                 .removeEmptyDirs(this.getRemoveEmptyDirs().get())
+                .remapLog4jPlugins(this.getRemapLog4jPlugins().get())
                 .build().run();
     }
 
