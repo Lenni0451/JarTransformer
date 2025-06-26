@@ -24,9 +24,13 @@ public abstract class StringReplaceTransformer extends Transformer {
     @Input
     public abstract MapProperty<String, Object> getReplacements();
 
+    @Input
+    public abstract MapProperty<String, Object> getRegexReplacements();
+
     @Override
     public void transform(Logger log, FileSystem fileSystem) throws Throwable {
         Map<String, Object> replacements = this.getReplacements().get();
+        Map<String, Object> regexReplacements = this.getRegexReplacements().get();
         this.iterateFiles(fileSystem, path -> {
             if (path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".class")) {
                 byte[] bytes = Files.readAllBytes(path);
@@ -34,6 +38,9 @@ public abstract class StringReplaceTransformer extends Transformer {
                 boolean modified = ASMUtils.mutateStrings(node, s -> {
                     for (Map.Entry<String, Object> entry : replacements.entrySet()) {
                         s = s.replace(entry.getKey(), String.valueOf(entry.getValue()));
+                    }
+                    for (Map.Entry<String, Object> entry : regexReplacements.entrySet()) {
+                        s = s.replaceAll(entry.getKey(), String.valueOf(entry.getValue()));
                     }
                     return s;
                 });

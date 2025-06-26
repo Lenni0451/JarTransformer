@@ -177,7 +177,15 @@ stringReplace {
     // Strings are replaced by iterating over the replacements map and replacing each key with its value
     // The order of the replacements is not guaranteed, so do not rely on it
     replacements = [
-        "${version}": project.version // Replace the placeholder "${version}" with the project version
+        // Replace the placeholder "${version}" with the project version
+        "${version}": project.version
+    ]
+
+    // Regex replacements can be used to replace strings matching a regex pattern
+    regexReplacements = [
+        // Strip all leading and trailing whitespace from strings
+        "^[ \\t]+": "",
+        "[ \\t]+$": "",
     ]
 }
 ```
