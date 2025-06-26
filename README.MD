@@ -101,6 +101,10 @@ repackage {
     // Removing them is not required, but can help to reduce the size of the jar file and make it cleaner
     // This also removes empty directories which are not part of the relocations
     removeEmptyDirs = false // Default: false
+
+    // Whether to remap log4j plugin classes
+    // This is only required when repackaging log4j itself
+    remapLog4jPlugins = true; // Default: true
 }
 ```
 
@@ -161,6 +165,27 @@ access {
         // Make the method "org.example.MyClass#myMethod()" mutable
         "org/example/MyClass.myMethod()V",
         "Lorg/example/MyClass;myMethod()V",
+    ]
+}
+```
+
+### StringReplaceTransformer
+This transformer can be used to replace strings in the jar file.
+```groovy
+stringReplace {
+    // The placeholders to replace in the jar file
+    // Strings are replaced by iterating over the replacements map and replacing each key with its value
+    // The order of the replacements is not guaranteed, so do not rely on it
+    replacements = [
+        // Replace the placeholder "${version}" with the project version
+        "${version}": project.version
+    ]
+
+    // Regex replacements can be used to replace strings matching a regex pattern
+    regexReplacements = [
+        // Strip all leading and trailing whitespace from strings
+        "^[ \\t]+": "",
+        "[ \\t]+$": "",
     ]
 }
 ```
