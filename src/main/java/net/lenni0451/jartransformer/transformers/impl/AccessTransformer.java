@@ -44,71 +44,19 @@ public abstract class AccessTransformer extends Transformer {
     @Input
     public abstract SetProperty<String> getMutable();
 
+    @Input
+    public abstract SetProperty<String> getFull();
+
     @Override
     public void transform(Logger log, FileSystem fileSystem) throws Throwable {
         List<ClassMutator> targets = new ArrayList<>();
-        for (String s : this.getAccessible().get()) {
-            Matcher matcher = CLASS_REGEX.matcher(s);
-            if (matcher.matches()) {
-                String className = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
-                targets.add(new ClassTarget(className, classNode -> {
-                    classNode.access = Modifiers.setAccess(classNode.access, Opcodes.ACC_PUBLIC);
-                }));
-                continue;
-            }
-            matcher = FIELD_REGEX.matcher(s);
-            if (matcher.matches()) {
-                String className = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
-                String fieldName = matcher.group(3);
-                String fieldDesc = matcher.group(4);
-                targets.add(new FieldTarget(className, fieldName, fieldDesc, fieldNode -> {
-                    fieldNode.access = Modifiers.setAccess(fieldNode.access, Opcodes.ACC_PUBLIC);
-                }));
-                continue;
-            }
-            matcher = METHOD_REGEX.matcher(s);
-            if (matcher.matches()) {
-                String className = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
-                String methodName = matcher.group(3);
-                String methodDesc = matcher.group(4);
-                targets.add(new MethodTarget(className, methodName, methodDesc, methodNode -> {
-                    methodNode.access = Modifiers.setAccess(methodNode.access, Opcodes.ACC_PUBLIC);
-                }));
-                continue;
-            }
-            throw new IllegalArgumentException("Invalid access target: " + s);
-        }
-        for (String s : this.getMutable().get()) {
-            Matcher matcher = CLASS_REGEX.matcher(s);
-            if (matcher.matches()) {
-                String className = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
-                targets.add(new ClassTarget(className, classNode -> {
-                    classNode.access = Modifiers.remove(classNode.access, Opcodes.ACC_FINAL);
-                }));
-                continue;
-            }
-            matcher = FIELD_REGEX.matcher(s);
-            if (matcher.matches()) {
-                String className = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
-                String fieldName = matcher.group(3);
-                String fieldDesc = matcher.group(4);
-                targets.add(new FieldTarget(className, fieldName, fieldDesc, fieldNode -> {
-                    fieldNode.access = Modifiers.remove(fieldNode.access, Opcodes.ACC_FINAL);
-                }));
-                continue;
-            }
-            matcher = METHOD_REGEX.matcher(s);
-            if (matcher.matches()) {
-                String className = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
-                String methodName = matcher.group(3);
-                String methodDesc = matcher.group(4);
-                targets.add(new MethodTarget(className, methodName, methodDesc, methodNode -> {
-                    methodNode.access = Modifiers.remove(methodNode.access, Opcodes.ACC_FINAL);
-                }));
-                continue;
-            }
-            throw new IllegalArgumentException("Invalid mutable target: " + s);
-        }
+        this.iterateEntries(targets, this.getAccessible().get(), access -> Modifiers.setAccess(access, Opcodes.ACC_PUBLIC));
+        this.iterateEntries(targets, this.getMutable().get(), access -> Modifiers.remove(access, Opcodes.ACC_FINAL));
+        this.iterateEntries(targets, this.getFull().get(), access -> {
+            int out = Modifiers.setAccess(access, Opcodes.ACC_PUBLIC);
+            out = Modifiers.remove(out, Opcodes.ACC_FINAL);
+            return out;
+        });
         this.iterateFiles(fileSystem, path -> {
             if (path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".class")) {
                 byte[] bytes = Files.readAllBytes(path);
@@ -125,6 +73,40 @@ public abstract class AccessTransformer extends Transformer {
                 }
             }
         });
+    }
+
+    private void iterateEntries(final List<ClassMutator> targets, final Set<String> entries, final AccessMutator mutator) {
+        for (String s : entries) {
+            Matcher matcher = CLASS_REGEX.matcher(s);
+            if (matcher.matches()) {
+                String className = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+                targets.add(new ClassTarget(className, classNode -> {
+                    classNode.access = mutator.mutate(classNode.access);
+                }));
+                continue;
+            }
+            matcher = FIELD_REGEX.matcher(s);
+            if (matcher.matches()) {
+                String className = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+                String fieldName = matcher.group(3);
+                String fieldDesc = matcher.group(4);
+                targets.add(new FieldTarget(className, fieldName, fieldDesc, fieldNode -> {
+                    fieldNode.access = mutator.mutate(fieldNode.access);
+                }));
+                continue;
+            }
+            matcher = METHOD_REGEX.matcher(s);
+            if (matcher.matches()) {
+                String className = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+                String methodName = matcher.group(3);
+                String methodDesc = matcher.group(4);
+                targets.add(new MethodTarget(className, methodName, methodDesc, methodNode -> {
+                    methodNode.access = mutator.mutate(methodNode.access);
+                }));
+                continue;
+            }
+            throw new IllegalArgumentException("Invalid target: " + s);
+        }
     }
 
 
@@ -157,6 +139,11 @@ public abstract class AccessTransformer extends Transformer {
             if (methodNode == null) throw new IllegalArgumentException("Method '" + this.methodName + this.methodDesc + "' not found in class '" + this.className + "'");
             this.mutator.accept(methodNode);
         }
+    }
+
+    @FunctionalInterface
+    private interface AccessMutator {
+        int mutate(final int access);
     }
 
 }
