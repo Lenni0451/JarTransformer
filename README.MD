@@ -1,6 +1,15 @@
 # JarTransformer
 Gradle plugin for transforming libraries and (output) jar files.
 
+- [JarTransformer](#jartransformer)
+  - [Usage](#usage)
+  - [Transformers](#transformers)
+    - [RepackageTransformer](#repackagetransformer)
+    - [ExcludeTransformer](#excludetransformer)
+    - [AccessTransformer](#accesstransformer)
+    - [StringReplaceTransformer](#stringreplacetransformer)
+    - [ClassTransformTransformer](#classtransformtransformer)
+
 ## Usage
 Adding the plugin to your gradle project works like every other plugin.
 
@@ -42,7 +51,7 @@ jarTransformer { // The plugin extension
 }
 ```
 It is possible to register multiple jar and dependency transformations and each transformation can have multiple transformers.\
-The order of the transformers is the order in which they are registered.
+The order of the transformers is the order in which they are applied.
 
 ## Transformers
 ### RepackageTransformer
@@ -200,5 +209,25 @@ stringReplace {
         "^[ \\t]+": "",
         "[ \\t]+$": "",
     ]
+}
+```
+
+### ClassTransformTransformer
+This transformer can be used to transform classes in the jar using my [ClassTransform](https://github.com/Lenni0451/ClassTransform/) library.\
+If the transformer is used, a `transformers` submodule is created in the project.
+You need to put all the class transform classes in the `src/main/java` directory of that submodule.\
+You can <b>only</b> put transformer classes in that submodule, other classes <b>will</b> throw an exception when the transformer is loaded.\
+It is also not possible to use any dependencies other than the automatically added `ClassTransform` dependency in that submodule.
+That includes your main project and any other dependencies you might have.
+While this limits the usability of the transformer, it is required to ensure the classes can be compiled independently of the main build task.
+```groovy
+classTransform {
+    // The package or signle class to load as a transformer
+    // Use "*" to load all transformers in the specified package, but not in subpackages
+    // Use "**" to load all transformers in the specified package and all subpackages
+    // Example: "test.*" will load "test.MyTransformer" but not "test.sub.MyOtherTransformer"
+    // Example: "test.**" will load "test.MyTransformer" and "test.sub.MyOtherTransformer"
+    // Example: "test.MyTransformer" will load only that class
+    included = "**" // Default: "**"
 }
 ```
