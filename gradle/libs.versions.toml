@@ -17,10 +17,6 @@ asm-util = { module = "org.ow2.asm:asm-util", version.ref = "asm" }
 classtransform-core = { module = "net.lenni0451.classtransform:core", version.ref = "classtransform" }
 classtransform-additionalclassprovider = { module = "net.lenni0451.classtransform:additionalclassprovider", version.ref = "classtransform" }
 
-junit-bom = { module = "org.junit:junit-bom", version = "5.13.2" }
-junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
-junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
-
 [bundles]
 asm = ["asm", "asm-commons", "asm-tree", "asm-util"]
 classtransform = ["classtransform-core", "classtransform-additionalclassprovider"]
