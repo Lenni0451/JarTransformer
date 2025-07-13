@@ -39,7 +39,11 @@ public abstract class Transformer {
     public abstract void transform(final Logger log, final FileSystem fileSystem) throws Throwable;
 
     protected final void iterateFiles(final FileSystem fileSystem, final ThrowingConsumer<Path> consumer) throws IOException {
-        try (Stream<Path> paths = Files.walk(fileSystem.getPath("/"))) {
+        this.iterateFiles(fileSystem.getPath("/"), consumer);
+    }
+
+    protected final void iterateFiles(final Path rootPath, final ThrowingConsumer<Path> consumer) throws IOException {
+        try (Stream<Path> paths = Files.walk(rootPath)) {
             paths.forEach(path -> {
                 try {
                     if (!Files.isRegularFile(path)) return;

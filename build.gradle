@@ -25,6 +25,12 @@ gradlePlugin {
     }
 }
 
+sourceSets.configureEach {
+    it.classTokenReplacer {
+        property("\${classtransform_version}", libs.classtransform.core.get().version)
+    }
+}
+
 dependencies {
     compileOnly libs.findbugs
     compileOnly libs.jetbrainsAnnotations
@@ -33,4 +39,5 @@ dependencies {
 
     api libs.commons.asm
     api libs.bundles.asm
+    api libs.bundles.classtransform
 }

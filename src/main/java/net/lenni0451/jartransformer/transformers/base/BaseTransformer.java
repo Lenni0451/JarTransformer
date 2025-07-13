@@ -1,10 +1,7 @@
 package net.lenni0451.jartransformer.transformers.base;
 
 import net.lenni0451.jartransformer.transformers.Transformer;
-import net.lenni0451.jartransformer.transformers.impl.AccessTransformer;
-import net.lenni0451.jartransformer.transformers.impl.ExcludeTransformer;
-import net.lenni0451.jartransformer.transformers.impl.RepackageTransformer;
-import net.lenni0451.jartransformer.transformers.impl.StringReplaceTransformer;
+import net.lenni0451.jartransformer.transformers.impl.*;
 import org.gradle.api.Action;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
@@ -46,6 +43,10 @@ public abstract class BaseTransformer {
 
     public void stringReplace(final Action<? super StringReplaceTransformer> action) {
         this.add("stringReplaceTransformer", StringReplaceTransformer.class, action);
+    }
+
+    public void classTransform(final Action<? super ClassTransformTransformer> action) {
+        this.add("classTransformTransformer", ClassTransformTransformer.class, action);
     }
 
     private <T extends Transformer> void add(final String name, final Class<T> type, final Action<? super T> action) {

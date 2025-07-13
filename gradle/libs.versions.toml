@@ -1,5 +1,6 @@
 [versions]
 asm = "9.8"
+classtransform = "1.14.1"
 
 [libraries]
 findbugs = { module = "com.google.code.findbugs:jsr305", version = "3.0.2" }
@@ -8,17 +9,21 @@ lombok = { module = "org.projectlombok:lombok", version = "1.18.38" }
 
 commons-asm = { module = "net.lenni0451.commons:asm", version = "1.7.1" }
 
-junit-bom = { module = "org.junit:junit-bom", version = "5.13.3" }
-junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
-junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
-
 asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
 asm-commons = { module = "org.ow2.asm:asm-commons", version.ref = "asm" }
 asm-tree = { module = "org.ow2.asm:asm-tree", version.ref = "asm" }
 asm-util = { module = "org.ow2.asm:asm-util", version.ref = "asm" }
 
+classtransform-core = { module = "net.lenni0451.classtransform:core", version.ref = "classtransform" }
+classtransform-additionalclassprovider = { module = "net.lenni0451.classtransform:additionalclassprovider", version.ref = "classtransform" }
+
+junit-bom = { module = "org.junit:junit-bom", version = "5.13.2" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+
 [bundles]
 asm = ["asm", "asm-commons", "asm-tree", "asm-util"]
+classtransform = ["classtransform-core", "classtransform-additionalclassprovider"]
 
 [plugins]
 classTokenReplacer = { id = "net.raphimc.class-token-replacer", version = "1.1.7" }
