@@ -44,14 +44,15 @@ public abstract class Transformer {
 
     protected final void iterateFiles(final Path rootPath, final ThrowingConsumer<Path> consumer) throws IOException {
         try (Stream<Path> paths = Files.walk(rootPath)) {
-            paths.forEach(path -> {
-                try {
-                    if (!Files.isRegularFile(path)) return;
-                    consumer.accept(path);
-                } catch (Throwable t) {
-                    throw new IllegalStateException("Failed to process file: " + path, t);
-                }
-            });
+            paths
+                    .filter(Files::isRegularFile)
+                    .forEach(path -> {
+                        try {
+                            consumer.accept(path);
+                        } catch (Throwable t) {
+                            throw new IllegalStateException("Failed to process file: " + path, t);
+                        }
+                    });
         }
     }
 

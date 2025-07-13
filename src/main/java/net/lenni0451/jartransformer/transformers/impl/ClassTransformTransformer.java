@@ -1,6 +1,5 @@
 package net.lenni0451.jartransformer.transformers.impl;
 
-import lombok.extern.slf4j.Slf4j;
 import net.lenni0451.classtransform.TransformerManager;
 import net.lenni0451.classtransform.additionalclassprovider.FileSystemClassProvider;
 import net.lenni0451.classtransform.annotations.CReplaceCallback;
@@ -22,7 +21,6 @@ import java.util.ArrayList;
 
 import static net.lenni0451.commons.asm.ASMUtils.dot;
 
-@Slf4j
 public abstract class ClassTransformTransformer extends Transformer {
 
     @Inject
