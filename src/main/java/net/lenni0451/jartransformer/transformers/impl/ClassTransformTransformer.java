@@ -5,9 +5,17 @@ import net.lenni0451.classtransform.additionalclassprovider.FileSystemClassProvi
 import net.lenni0451.classtransform.annotations.CReplaceCallback;
 import net.lenni0451.classtransform.utils.tree.BasicClassProvider;
 import net.lenni0451.commons.asm.io.ClassIO;
+import net.lenni0451.jartransformer.transformers.SpecializedTransformer;
 import net.lenni0451.jartransformer.transformers.Transformer;
+import net.lenni0451.jartransformer.utils.SourceCompiler;
+import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
@@ -18,10 +26,11 @@ import java.io.File;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.List;
 
 import static net.lenni0451.commons.asm.ASMUtils.dot;
 
-public abstract class ClassTransformTransformer extends Transformer {
+public abstract class ClassTransformTransformer extends Transformer implements SpecializedTransformer<ClassTransformTransformer> {
 
     @Inject
     public ClassTransformTransformer(final String name) {
@@ -81,6 +90,32 @@ public abstract class ClassTransformTransformer extends Transformer {
         } else {
             return className.equals(included);
         }
+    }
+
+    @Override
+    public void applySpecialized(Project project, List<ClassTransformTransformer> transformers) {
+        SourceSetInfo sourceSet = this.registerClassTransformSourceSet(project);
+        File compiledClasses = SourceCompiler.compileSourceSet(project, sourceSet.sourceFiles, sourceSet.dependencies);
+        for (ClassTransformTransformer transformer : transformers) {
+            transformer.getCompiledClassesDir().set(compiledClasses.getAbsolutePath());
+        }
+    }
+
+    private SourceSetInfo registerClassTransformSourceSet(final Project project) {
+        JavaPluginExtension extension = project.getExtensions().getByType(JavaPluginExtension.class);
+        SourceSetContainer sourceSets = extension.getSourceSets();
+        SourceSet transformer = sourceSets.create("transformers", ss -> {
+            ss.getJava().srcDir("src/transformers/java");
+            ss.getResources().srcDir("src/transformers/resources");
+        });
+        Configuration configuration = project.getConfigurations().getByName(transformer.getImplementationConfigurationName());
+        project.getDependencies().add(configuration.getName(), "net.lenni0451.classtransform:core:${classtransform_version}");
+        configuration.setCanBeResolved(true);
+        return new SourceSetInfo(transformer.getAllJava(), configuration);
+    }
+
+
+    private record SourceSetInfo(FileCollection sourceFiles, Configuration dependencies) {
     }
 
 }
