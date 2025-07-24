@@ -1,6 +1,8 @@
 package net.lenni0451.jartransformer;
 
+import net.lenni0451.jartransformer.extensions.JarMergerExtension;
 import net.lenni0451.jartransformer.extensions.JarTransformerExtension;
+import net.lenni0451.jartransformer.tasks.JarMergerTask;
 import net.lenni0451.jartransformer.tasks.JarTransformTask;
 import net.lenni0451.jartransformer.transformers.SpecializedTransformer;
 import net.lenni0451.jartransformer.transformers.Transformer;
@@ -14,6 +16,8 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.jvm.tasks.Jar;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,12 +28,29 @@ public class JarTransformerPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project target) {
-        JarTransformerExtension extension = target.getExtensions().create("jarTransformer", JarTransformerExtension.class);
+        JarMergerExtension jarMergerExtension = target.getExtensions().create("jarMerger", JarMergerExtension.class);
+        target.afterEvaluate(project -> {
+            if (jarMergerExtension.getFileName().isPresent()) {
+                TaskProvider<JarMergerTask> jarMergerTask = project.getTasks().register("jarMerger", JarMergerTask.class);
+                jarMergerTask.configure(task -> {
+                    task.getProjectJar().set(project.getTasks().named("jar", Jar.class).flatMap(Jar::getArchiveFile));
+                    task.getInputFiles().from(jarMergerExtension.getConfiguration().get().getIncoming().getArtifacts().getArtifactFiles());
+                    task.getOutputJar().set(jarMergerExtension.getDestinationDirectory().file(jarMergerExtension.getFileName()));
+                    task.getDuplicatesStrategy().set(jarMergerExtension.getDuplicatesStrategy());
+                    task.getExcludes().set(jarMergerExtension.getExcludes());
+                    task.getMergeServices().set(jarMergerExtension.getMergeServices());
+                    task.getMergeLog4jPlugins().set(jarMergerExtension.getMergeLog4jPlugins());
+                });
+                project.getTasks().named("assemble").configure(task -> task.dependsOn(jarMergerTask));
+            }
+        });
+
+        JarTransformerExtension jarTransformerExtension = target.getExtensions().create("jarTransformer", JarTransformerExtension.class);
         target.afterEvaluate(project -> {
             Map<Class<?>, SpecializedTransformerList<?>> specializedTransformers = new HashMap<>();
 
-            this.applyDependencyTransformers(project, extension, specializedTransformers);
-            this.applyJarTransformers(project, extension, specializedTransformers);
+            this.applyDependencyTransformers(project, jarTransformerExtension, specializedTransformers);
+            this.applyJarTransformers(project, jarTransformerExtension, specializedTransformers);
 
             for (SpecializedTransformerList<?> specializedTransformerList : specializedTransformers.values()) {
                 specializedTransformerList.invoke(project);

@@ -1,5 +1,6 @@
 package net.lenni0451.jartransformer.transformers;
 
+import net.lenni0451.jartransformer.utils.FileSystemUtils;
 import net.lenni0451.jartransformer.utils.ThrowingConsumer;
 import org.gradle.api.provider.Property;
 import org.slf4j.Logger;
@@ -7,17 +8,15 @@ import org.slf4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Stream;
 
 public abstract class Transformer {
 
     public static void applyAll(final Logger log, final File file, final List<Transformer> transformers) throws Throwable {
-        try (FileSystem fileSystem = FileSystems.newFileSystem(file.toPath(), new HashMap<>())) {
+        try (FileSystem fileSystem = FileSystemUtils.openRead(file)) {
             for (Transformer transformer : transformers) {
                 try {
                     transformer.transform(log, fileSystem);
