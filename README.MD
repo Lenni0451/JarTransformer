@@ -25,7 +25,7 @@ pluginManagement {
 Then, you can add the plugin to your `build.gradle` file:
 ```groovy
 plugins {
-    id "net.lenni0451.jartransformer" version "x.x.x"
+    id "net.lenni0451.jar-transformer" version "x.x.x"
 }
 ```
 

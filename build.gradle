@@ -9,14 +9,10 @@ plugins {
     alias libs.plugins.classTokenReplacer
 }
 
-repositories {
-    mavenCentral()
-}
-
 gradlePlugin {
     plugins {
         jartransformer {
-            id = "net.lenni0451.jartransformer"
+            id = "net.lenni0451.jar-transformer"
             implementationClass = "net.lenni0451.jartransformer.JarTransformerPlugin"
             displayName = project.maven_name
             description = rootProject.maven_description
