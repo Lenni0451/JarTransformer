@@ -36,6 +36,9 @@ public abstract class JarTransformTask extends DefaultTask {
             log.warn("Repackaging in-place is not recommended, consider changing the output file");
             file = inputFile;
         } else {
+            if (outputFile.getParentFile() != null) {
+                outputFile.getParentFile().mkdirs();
+            }
             Files.copy(inputFile.toPath(), outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             file = outputFile;
         }
