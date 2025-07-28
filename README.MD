@@ -1,5 +1,6 @@
 # JarTransformer
-Gradle plugin for transforming libraries and (output) jar files.
+Gradle plugin for transforming libraries and (output) jar files.\
+It also includes a jar merger to provide a merged jar file with all dependencies.
 
 - [JarTransformer](#jartransformer)
   - [Usage](#usage)
@@ -29,12 +30,14 @@ plugins {
 }
 ```
 
-After that you can use the `jarTransformer` extension to configure the plugin:
+### Transformer extension
+To use the transformer extension, you need to add the `jarTransformer` block to your `build.gradle` file:
 ```groovy
-jarTransformer { // The plugin extension
+jarTransformer {
     jar { // Register a jar transformation
         inputFile = jar.archiveFile //The input jar file to transform
-        outputFile = project.layout.buildDirectory.dir("libs").get().file("${project.name}-repackaged.jar") // The output jar file (optional, will be same as input if not set)
+        // 'buildLibs' is a shortcut for 'project.layout.buildDirectory.dir("libs").get()' added by the plugin
+        outputFile = buildLibs.file("${project.name}-repackaged.jar") // The output jar file (optional, will be same as input if not set)
         repackage { // Register a transformer
             ... // See the Transformers section for a list of available transformers and their configuration
         }
@@ -52,6 +55,36 @@ jarTransformer { // The plugin extension
 ```
 It is possible to register multiple jar and dependency transformations and each transformation can have multiple transformers.\
 The order of the transformers is the order in which they are applied.
+
+### Merger extension
+To use the merger extension, you need to add the `jarMerger` block to your `build.gradle` file:
+```groovy
+jarMerger {
+    // The configuration containing the dependencies to merge
+    configuration = configurations.runtimeClasspath // Default: configurations.runtimeClasspath
+    // The destination directory for the merged jar file
+    destinationDirectory = project.layout.buildDirectory.dir("libs").get() // Default: project.layout.buildDirectory.dir("libs").get()
+    // The way duplicate files in the output jar should be handled
+    // Possible values: INCLUDE (overwrite duplicates/the last file wins)
+    //                  EXCLUDE (skip duplicates/the first file wins)
+    //                  WARN (skip duplicates, but log a warning)
+    //                  FAIL (throw an exception if duplicates are found)
+    duplicatesStrategy = DuplicatesStrategy.WARN // Default: DuplicatesStrategy.WARN
+    // Files to exclude from dependency jars
+    // The files in your project output jar will not be affected by this
+    excludes = [
+        "META-INF/*.SF",
+        "META-INF/*.DSA",
+        "META-INF/*.RSA",
+        "module-info.class",
+    ]
+    // Whether to merge service files in the output jar
+    mergeServices = true // Default: true
+    // Whether to merge log4j plugin cache files in the output jar
+    mergeLog4jPlugins = true // Default: true
+}
+```
+The task is automatically registered as `jarMerger` and will run after the `assemble` task.
 
 ## Transformers
 ### RepackageTransformer

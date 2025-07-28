@@ -33,7 +33,7 @@ public abstract class JarTransformerExtension {
 
     public void jar(final Action<? super JarTransformer> action) {
         List<JarTransformer> jarTransformers = new ArrayList<>(this.getJarTransformers().get());
-        JarTransformer jarTransformer = this.project.getObjects().newInstance(JarTransformer.class, "jarTransformer" + jarTransformers.size(), this.project.getObjects());
+        JarTransformer jarTransformer = this.project.getObjects().newInstance(JarTransformer.class, "jarTransformer" + jarTransformers.size(), this.project.getObjects(), this.project.getLayout().getBuildDirectory().dir("libs").get());
         jarTransformers.add(jarTransformer);
         this.getJarTransformers().set(jarTransformers);
         action.execute(jarTransformer);
