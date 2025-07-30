@@ -64,6 +64,8 @@ jarMerger {
     configuration = configurations.runtimeClasspath // Default: configurations.runtimeClasspath
     // The destination directory for the merged jar file
     destinationDirectory = project.layout.buildDirectory.dir("libs").get() // Default: project.layout.buildDirectory.dir("libs").get()
+    // The name of the merged output jar file
+    fileName = "merged.jar"
     // The way duplicate files in the output jar should be handled
     // Possible values: INCLUDE (overwrite duplicates/the last file wins)
     //                  EXCLUDE (skip duplicates/the first file wins)
