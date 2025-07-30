@@ -66,7 +66,8 @@ public abstract class JarMergerTask extends DefaultTask {
                 @Override
                 public void write(String name, byte[] content) throws IOException {
                     Path path = fileSystem.getPath(name);
-                    Files.createDirectories(path.getParent());
+                    Path parent = path.getParent();
+                    if (parent != null) Files.createDirectories(path.getParent());
                     Files.write(path, content);
                 }
 
