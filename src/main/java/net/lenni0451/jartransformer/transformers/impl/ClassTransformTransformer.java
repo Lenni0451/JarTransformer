@@ -111,10 +111,13 @@ public abstract class ClassTransformTransformer extends Transformer implements S
             ss.getJava().srcDir("src/transformers/java");
             ss.getResources().srcDir("src/transformers/resources");
         });
-        Configuration configuration = project.getConfigurations().getByName(transformer.getImplementationConfigurationName());
-        project.getDependencies().add(configuration.getName(), "net.lenni0451.classtransform:core:${classtransform_version}");
-        configuration.setCanBeResolved(true);
-        return new SourceSetInfo(transformer.getAllJava(), configuration);
+        Configuration implementation = project.getConfigurations().getByName(transformer.getImplementationConfigurationName());
+        project.getDependencies().add(implementation.getName(), "net.lenni0451.classtransform:core:${classtransform_version}");
+        Configuration classpath = project.getConfigurations().maybeCreate("transformersResolvableClasspath");
+        classpath.extendsFrom(implementation);
+        classpath.setCanBeResolved(true);
+        classpath.setCanBeConsumed(false);
+        return new SourceSetInfo(transformer.getAllJava(), classpath);
     }
 
 
