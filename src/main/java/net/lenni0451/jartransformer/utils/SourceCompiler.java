@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
+import org.jetbrains.annotations.Nullable;
 
 import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
@@ -15,7 +16,9 @@ import java.util.List;
 @Slf4j
 public class SourceCompiler {
 
+    @Nullable
     public static File compileSourceSet(final Project project, final FileCollection sourceFiles, final Configuration dependencies) {
+        if (sourceFiles.getFiles().isEmpty()) return null;
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) throw new IllegalStateException("No Java compiler found");
         File outputDir = new File(project.getLayout().getBuildDirectory().get().getAsFile(), "classTransform-classes");

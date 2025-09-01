@@ -48,6 +48,7 @@ public abstract class ClassTransformTransformer extends Transformer implements S
 
     @Override
     public void transform(Logger log, FileSystem fileSystem) throws Throwable {
+        if (!this.getCompiledClassesDir().isPresent()) return;
         TransformerManager transformerManager = new TransformerManager(new FileSystemClassProvider(fileSystem, new BasicClassProvider()));
         this.iterateFiles(new File(this.getCompiledClassesDir().get()).toPath(), path -> {
             if (!path.getFileName().toString().endsWith(".class")) return;
@@ -96,8 +97,10 @@ public abstract class ClassTransformTransformer extends Transformer implements S
     public void applySpecialized(Project project, List<ClassTransformTransformer> transformers) {
         SourceSetInfo sourceSet = this.registerClassTransformSourceSet(project);
         File compiledClasses = SourceCompiler.compileSourceSet(project, sourceSet.sourceFiles, sourceSet.dependencies);
-        for (ClassTransformTransformer transformer : transformers) {
-            transformer.getCompiledClassesDir().set(compiledClasses.getAbsolutePath());
+        if (compiledClasses != null) {
+            for (ClassTransformTransformer transformer : transformers) {
+                transformer.getCompiledClassesDir().set(compiledClasses.getAbsolutePath());
+            }
         }
     }
 
