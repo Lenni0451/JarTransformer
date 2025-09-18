@@ -5,7 +5,7 @@ classtransform = "1.14.1"
 [libraries]
 findbugs = { module = "com.google.code.findbugs:jsr305", version = "3.0.2" }
 jetbrainsAnnotations = { module = "org.jetbrains:annotations", version = "26.0.2-1" }
-lombok = { module = "org.projectlombok:lombok", version = "1.18.40" }
+lombok = { module = "org.projectlombok:lombok", version = "1.18.42" }
 
 commons-asm = { module = "net.lenni0451.commons:asm", version = "1.8.0" }
 
