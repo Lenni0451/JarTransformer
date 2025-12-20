@@ -6,10 +6,13 @@ import net.lenni0451.jartransformer.utils.ASMUtils;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.tasks.Input;
+import org.mozilla.universalchardet.UniversalDetector;
 import org.objectweb.asm.tree.ClassNode;
 import org.slf4j.Logger;
 
 import javax.inject.Inject;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.Charset;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.util.List;
@@ -46,7 +49,7 @@ public abstract class StringReplaceTransformer extends Transformer {
                     if (extension.equalsIgnoreCase(".class")) {
                         modifiedBytes = this.transformClass(bytes, replacements, regexReplacements);
                     } else {
-                        modifiedBytes = this.transformText(bytes, replacements, regexReplacements);
+                        modifiedBytes = this.transformText(log, bytes, replacements, regexReplacements);
                     }
                     break;
                 }
@@ -73,8 +76,15 @@ public abstract class StringReplaceTransformer extends Transformer {
         return ClassIO.toStacklessBytes(node);
     }
 
-    private byte[] transformText(final byte[] bytes, final Map<String, Object> replacements, final Map<String, Object> regexReplacements) {
-        String content = new String(bytes);
+    private byte[] transformText(final Logger log, final byte[] bytes, final Map<String, Object> replacements, final Map<String, Object> regexReplacements) {
+        Charset charset;
+        try {
+            charset = Charset.forName(UniversalDetector.detectCharset(new ByteArrayInputStream(bytes)));
+        } catch (Throwable t) {
+            log.debug("Could not detect charset, falling back to default charset", t);
+            charset = Charset.defaultCharset();
+        }
+        String content = new String(bytes, charset);
         String newContent = content;
         for (Map.Entry<String, Object> entry : replacements.entrySet()) {
             newContent = newContent.replace(entry.getKey(), String.valueOf(entry.getValue()));
@@ -83,7 +93,7 @@ public abstract class StringReplaceTransformer extends Transformer {
             newContent = newContent.replaceAll(entry.getKey(), String.valueOf(entry.getValue()));
         }
         if (newContent.equals(content)) return null;
-        return newContent.getBytes();
+        return newContent.getBytes(charset);
     }
 
 }
