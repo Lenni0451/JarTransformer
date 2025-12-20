@@ -230,6 +230,13 @@ access {
 This transformer can be used to replace strings in the jar file.
 ```groovy
 stringReplace {
+    // File extensions to apply the string replacements to
+    fileExtensions = [
+        ".class", // Default value
+        ".yml", // Replace strings in yaml files
+        ".json" // Replace strings in json files
+    ]
+
     // The placeholders to replace in the jar file
     // Strings are replaced by iterating over the replacements map and replacing each key with its value
     // The order of the replacements is not guaranteed, so do not rely on it
