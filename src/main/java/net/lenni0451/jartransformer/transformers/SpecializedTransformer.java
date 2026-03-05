@@ -13,7 +13,8 @@ public interface SpecializedTransformer<T extends SpecializedTransformer<T>> {
      *
      * @param project      The current project
      * @param transformers The list of registered transformers of this type
+     * @param contexts     The list of contexts the transformers were registered in (e.g. JarTransformer or DependencyTransformer)
      */
-    void applySpecialized(final Project project, final List<T> transformers);
+    void applySpecialized(final Project project, final List<T> transformers, final List<Object> contexts);
 
 }

@@ -72,7 +72,7 @@ public class JarTransformerPlugin implements Plugin<Project> {
                 transform.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, jarType);
             });
 
-            this.checkSpecializedTransformers(dependencyTransformer.getTransformers().get(), specializedTransformers);
+            this.checkSpecializedTransformers(dependencyTransformer.getTransformers().get(), specializedTransformers, dependencyTransformer);
         }
     }
 
@@ -84,29 +84,30 @@ public class JarTransformerPlugin implements Plugin<Project> {
             }).get();
             if (buildTask != null) buildTask.finalizedBy(task);
 
-            this.checkSpecializedTransformers(jarTransformer.getTransformers().get(), specializedTransformers);
+            this.checkSpecializedTransformers(jarTransformer.getTransformers().get(), specializedTransformers, jarTransformer);
         }
     }
 
-    private void checkSpecializedTransformers(final List<Transformer> transformers, final Map<Class<?>, SpecializedTransformerList<?>> specializedTransformers) {
+    private void checkSpecializedTransformers(final List<Transformer> transformers, final Map<Class<?>, SpecializedTransformerList<?>> specializedTransformers, final Object context) {
         for (Transformer transformer : transformers) {
             if (!(transformer instanceof SpecializedTransformer<?> specializedTransformer)) continue;
-            SpecializedTransformerList<?> list = specializedTransformers.computeIfAbsent(specializedTransformer.getClass(), k -> new SpecializedTransformerList(k, new ArrayList<>()));
-            list.add(specializedTransformer);
+            SpecializedTransformerList<?> list = specializedTransformers.computeIfAbsent(specializedTransformer.getClass(), k -> new SpecializedTransformerList(k, new ArrayList<>(), new ArrayList<>()));
+            list.add(specializedTransformer, context);
         }
     }
 
 
-    private record SpecializedTransformerList<T extends SpecializedTransformer<T>>(Class<T> type, List<T> transformers) {
-        public void add(final SpecializedTransformer<?> transformer) {
+    private record SpecializedTransformerList<T extends SpecializedTransformer<T>>(Class<T> type, List<T> transformers, List<Object> contexts) {
+        public void add(final SpecializedTransformer<?> transformer, final Object context) {
             if (!this.type.isInstance(transformer)) {
                 throw new IllegalArgumentException("Transformer " + transformer.getClass().getSimpleName() + " is not an instance of " + this.type.getName());
             }
             this.transformers.add(this.type.cast(transformer));
+            this.contexts.add(context);
         }
 
         public void invoke(final Project project) {
-            this.transformers.get(0).applySpecialized(project, this.transformers);
+            this.transformers.get(0).applySpecialized(project, this.transformers, this.contexts);
         }
     }
 

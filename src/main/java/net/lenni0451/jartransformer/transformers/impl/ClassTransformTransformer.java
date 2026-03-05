@@ -7,8 +7,11 @@ import net.lenni0451.classtransform.utils.tree.BasicClassProvider;
 import net.lenni0451.commons.asm.io.ClassIO;
 import net.lenni0451.jartransformer.transformers.SpecializedTransformer;
 import net.lenni0451.jartransformer.transformers.Transformer;
+import net.lenni0451.jartransformer.transformers.base.DependencyTransformer;
+import net.lenni0451.jartransformer.transformers.base.JarTransformer;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -40,6 +43,11 @@ public abstract class ClassTransformTransformer extends Transformer implements S
 
     @Input
     public abstract Property<String> getIncluded();
+
+    @Optional
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public abstract ConfigurableFileCollection getClasspath();
 
     @Optional
     @InputDirectory
@@ -102,9 +110,22 @@ public abstract class ClassTransformTransformer extends Transformer implements S
     }
 
     @Override
-    public void applySpecialized(Project project, List<ClassTransformTransformer> transformers) {
+    public void applySpecialized(Project project, List<ClassTransformTransformer> transformers, List<Object> contexts) {
         SourceSet sourceSet = this.registerClassTransformSourceSet(project);
         if (sourceSet == null || sourceSet.getAllJava().isEmpty()) return;
+
+        Configuration implementation = project.getConfigurations().getByName(sourceSet.getImplementationConfigurationName());
+        for (Object context : contexts) {
+            if (context instanceof JarTransformer jarTransformer) {
+                project.getDependencies().add(implementation.getName(), project.files(jarTransformer.getInputFile()));
+            } else if (context instanceof DependencyTransformer dependencyTransformer) {
+                implementation.extendsFrom(dependencyTransformer.getConfiguration().get());
+            }
+        }
+        for (ClassTransformTransformer transformer : transformers) {
+            project.getDependencies().add(implementation.getName(), transformer.getClasspath());
+        }
+
         Provider<Directory> outputDir = project.getTasks().named(sourceSet.getCompileJavaTaskName(), JavaCompile.class)
                 .flatMap(JavaCompile::getDestinationDirectory);
         for (ClassTransformTransformer transformer : transformers) {

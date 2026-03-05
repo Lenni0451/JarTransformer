@@ -256,20 +256,25 @@ stringReplace {
 
 ### ClassTransformTransformer
 This transformer can be used to transform classes in the jar using my [ClassTransform](https://github.com/Lenni0451/ClassTransform/) library.\
-If the transformer is used, a `transformers` submodule is created in the project.
-You need to put all the class transform classes in the `src/main/java` directory of that submodule.\
-You can <b>only</b> put transformer classes in that submodule, other classes <b>will</b> throw an exception when the transformer is loaded.\
-It is also not possible to use any dependencies other than the automatically added `ClassTransform` dependency in that submodule.
-That includes your main project and any other dependencies you might have.
-While this limits the usability of the transformer, it is required to ensure the classes can be compiled independently of the main build task.
+When this transformer is used, a `transformers` source set is automatically created in the project.
+You need to put all your class transform classes in the `src/transformers/java` directory.\
+You can <b>only</b> put transformer classes in that directory, other classes <b>will</b> throw an exception when the transformer is loaded.
+
+By default, the `ClassTransform` library and the **target jar/dependency being transformed** are automatically added to the compilation classpath.
+You can add more dependencies (like other projects or external libraries) by using the `classpath` property of the transformer.
+
 ```groovy
 classTransform {
-    // The package or signle class to load as a transformer
+    // The package or single class to load as a transformer
     // Use "*" to load all transformers in the specified package, but not in subpackages
     // Use "**" to load all transformers in the specified package and all subpackages
     // Example: "test.*" will load "test.MyTransformer" but not "test.sub.MyOtherTransformer"
     // Example: "test.**" will load "test.MyTransformer" and "test.sub.MyOtherTransformer"
     // Example: "test.MyTransformer" will load only that class
     included = "**" // Default: "**"
+
+    // Add dependencies to the compilation classpath of ClassTransform transformers
+    // This allows transformers to reference classes and methods from these dependencies
+    classpath.from(configurations.runtimeClasspath)
 }
 ```
