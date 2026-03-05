@@ -263,6 +263,9 @@ You can <b>only</b> put transformer classes in that directory, other classes <b>
 By default, the `ClassTransform` library and the **target jar/dependency being transformed** are automatically added to the compilation classpath.
 You can add more dependencies (like other projects or external libraries) by using the `classpath` property of the transformer.
 
+> [!WARNING]
+> At the moment, the ClassTransform transformer does not support dependency transformations!
+
 ```groovy
 classTransform {
     // The package or single class to load as a transformer
