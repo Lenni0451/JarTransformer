@@ -7,15 +7,15 @@ import net.lenni0451.classtransform.utils.tree.BasicClassProvider;
 import net.lenni0451.commons.asm.io.ClassIO;
 import net.lenni0451.jartransformer.transformers.SpecializedTransformer;
 import net.lenni0451.jartransformer.transformers.Transformer;
-import net.lenni0451.jartransformer.utils.SourceCompiler;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.Directory;
+import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Property;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.SourceSet;
-import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.*;
+import org.gradle.api.tasks.compile.JavaCompile;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
@@ -41,21 +41,24 @@ public abstract class ClassTransformTransformer extends Transformer implements S
     @Input
     public abstract Property<String> getIncluded();
 
-    //Filled out by the JarTransformerPlugin
-    //Not a directory/file property because gradle decides to crash when using those
-    @Input
-    public abstract Property<String> getCompiledClassesDir();
+    @Optional
+    @InputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public abstract DirectoryProperty getCompiledClassesDir();
 
     @Override
     public boolean isCacheable() {
-        return false;
+        return true;
     }
 
     @Override
     public void transform(Logger log, FileSystem fileSystem) throws Throwable {
         if (!this.getCompiledClassesDir().isPresent()) return;
+        File compiledClassesDir = this.getCompiledClassesDir().get().getAsFile();
+        if (!compiledClassesDir.isDirectory()) return;
+
         TransformerManager transformerManager = new TransformerManager(new FileSystemClassProvider(fileSystem, new BasicClassProvider()));
-        this.iterateFiles(new File(this.getCompiledClassesDir().get()).toPath(), path -> {
+        this.iterateFiles(compiledClassesDir.toPath(), path -> {
             if (!path.getFileName().toString().endsWith(".class")) return;
 
             ClassNode classNode = ClassIO.fromBytes(Files.readAllBytes(path));
@@ -100,33 +103,26 @@ public abstract class ClassTransformTransformer extends Transformer implements S
 
     @Override
     public void applySpecialized(Project project, List<ClassTransformTransformer> transformers) {
-        SourceSetInfo sourceSet = this.registerClassTransformSourceSet(project);
-        File compiledClasses = SourceCompiler.compileSourceSet(project, sourceSet.sourceFiles, sourceSet.dependencies);
-        if (compiledClasses != null) {
-            for (ClassTransformTransformer transformer : transformers) {
-                transformer.getCompiledClassesDir().set(compiledClasses.getAbsolutePath());
-            }
+        SourceSet sourceSet = this.registerClassTransformSourceSet(project);
+        if (sourceSet == null || sourceSet.getAllJava().isEmpty()) return;
+        Provider<Directory> outputDir = project.getTasks().named(sourceSet.getCompileJavaTaskName(), JavaCompile.class)
+                .flatMap(JavaCompile::getDestinationDirectory);
+        for (ClassTransformTransformer transformer : transformers) {
+            transformer.getCompiledClassesDir().set(outputDir);
         }
     }
 
-    private SourceSetInfo registerClassTransformSourceSet(final Project project) {
-        JavaPluginExtension extension = project.getExtensions().getByType(JavaPluginExtension.class);
+    private SourceSet registerClassTransformSourceSet(final Project project) {
+        JavaPluginExtension extension = project.getExtensions().findByType(JavaPluginExtension.class);
+        if (extension == null) return null;
         SourceSetContainer sourceSets = extension.getSourceSets();
-        SourceSet transformer = sourceSets.create("transformers", ss -> {
-            ss.getJava().srcDir("src/transformers/java");
-            ss.getResources().srcDir("src/transformers/resources");
-        });
+        SourceSet transformer = sourceSets.maybeCreate("transformers");
+        transformer.getJava().srcDir("src/transformers/java");
+        transformer.getResources().srcDir("src/transformers/resources");
+
         Configuration implementation = project.getConfigurations().getByName(transformer.getImplementationConfigurationName());
         project.getDependencies().add(implementation.getName(), "net.lenni0451.classtransform:core:${classtransform_version}");
-        Configuration classpath = project.getConfigurations().maybeCreate("transformersResolvableClasspath");
-        classpath.extendsFrom(implementation);
-        classpath.setCanBeResolved(true);
-        classpath.setCanBeConsumed(false);
-        return new SourceSetInfo(transformer.getAllJava(), classpath);
-    }
-
-
-    private record SourceSetInfo(FileCollection sourceFiles, Configuration dependencies) {
+        return transformer;
     }
 
 }
