@@ -3,6 +3,8 @@ package net.lenni0451.jartransformer.transformers;
 import net.lenni0451.jartransformer.utils.FileSystemUtils;
 import net.lenni0451.jartransformer.utils.ThrowingConsumer;
 import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Internal;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -33,7 +35,13 @@ public abstract class Transformer {
         this.getName().set(name);
     }
 
+    @Input
     public abstract Property<String> getName();
+
+    @Internal
+    public boolean isCacheable() {
+        return true;
+    }
 
     public abstract void transform(final Logger log, final FileSystem fileSystem) throws Throwable;
 

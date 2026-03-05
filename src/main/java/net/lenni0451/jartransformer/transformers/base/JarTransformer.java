@@ -4,14 +4,14 @@ import lombok.Getter;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
-import org.gradle.api.tasks.InputFile;
-import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.*;
 
 import javax.inject.Inject;
 
 @Getter
 public abstract class JarTransformer extends BaseTransformer {
 
+    @Internal
     private final Directory buildLibs;
 
     @Inject
@@ -21,10 +21,11 @@ public abstract class JarTransformer extends BaseTransformer {
     }
 
     @InputFile
+    @PathSensitive(PathSensitivity.RELATIVE)
     public abstract RegularFileProperty getInputFile();
 
     @Optional
-    @InputFile
+    @OutputFile
     public abstract RegularFileProperty getOutputFile();
 
 }

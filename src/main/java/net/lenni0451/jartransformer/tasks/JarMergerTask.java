@@ -29,6 +29,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
+@CacheableTask
 public abstract class JarMergerTask extends DefaultTask {
 
     @InputFile

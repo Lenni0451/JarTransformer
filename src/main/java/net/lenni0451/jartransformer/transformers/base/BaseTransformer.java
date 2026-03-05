@@ -6,6 +6,9 @@ import org.gradle.api.Action;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Nested;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -21,9 +24,16 @@ public abstract class BaseTransformer {
         this.getName().set(name);
     }
 
+    @Input
     public abstract Property<String> getName();
 
+    @Nested
     public abstract ListProperty<Transformer> getTransformers();
+
+    @Internal
+    public boolean isCacheable() {
+        return this.getTransformers().get().stream().allMatch(Transformer::isCacheable);
+    }
 
     public void apply(final Logger log, final File file) throws Throwable {
         Transformer.applyAll(log, file, this.getTransformers().get());

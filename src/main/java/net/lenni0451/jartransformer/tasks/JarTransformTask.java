@@ -4,17 +4,31 @@ import lombok.extern.slf4j.Slf4j;
 import net.lenni0451.jartransformer.transformers.base.JarTransformer;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.provider.Property;
-import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.TaskAction;
 
+import javax.inject.Inject;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 
 @Slf4j
+@CacheableTask
 public abstract class JarTransformTask extends DefaultTask {
 
-    @Input
+    @Inject
+    public JarTransformTask() {
+        this.getOutputs().cacheIf("Transformers must be cacheable and transformation must not be in-place", task -> {
+            JarTransformer jarTransformer = this.getJarTransformer().get();
+            if (!jarTransformer.isCacheable()) return false;
+            File inputFile = jarTransformer.getInputFile().get().getAsFile();
+            File outputFile = jarTransformer.getOutputFile().isPresent() ? jarTransformer.getOutputFile().get().getAsFile() : null;
+            return !inputFile.equals(outputFile) && outputFile != null;
+        });
+    }
+
+    @Nested
     public abstract Property<JarTransformer> getJarTransformer();
 
     @TaskAction

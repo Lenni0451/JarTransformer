@@ -47,6 +47,11 @@ public abstract class ClassTransformTransformer extends Transformer implements S
     public abstract Property<String> getCompiledClassesDir();
 
     @Override
+    public boolean isCacheable() {
+        return false;
+    }
+
+    @Override
     public void transform(Logger log, FileSystem fileSystem) throws Throwable {
         if (!this.getCompiledClassesDir().isPresent()) return;
         TransformerManager transformerManager = new TransformerManager(new FileSystemClassProvider(fileSystem, new BasicClassProvider()));
