@@ -61,9 +61,15 @@ public abstract class ClassTransformTransformer extends Transformer implements S
 
     @Override
     public void transform(Logger log, FileSystem fileSystem) throws Throwable {
-        if (!this.getCompiledClassesDir().isPresent()) return;
+        if (!this.getCompiledClassesDir().isPresent()) {
+            log.info("No compiled classes directory specified for transformer {}, skipping transformation", this.getName());
+            return;
+        }
         File compiledClassesDir = this.getCompiledClassesDir().get().getAsFile();
-        if (!compiledClassesDir.isDirectory()) return;
+        if (!compiledClassesDir.isDirectory()) {
+            log.warn("Compiled classes directory {} for transformer {} does not exist or is not a directory, skipping transformation", compiledClassesDir, this.getName());
+            return;
+        }
 
         TransformerManager transformerManager = new TransformerManager(new FileSystemClassProvider(fileSystem, new BasicClassProvider()));
         this.iterateFiles(compiledClassesDir.toPath(), path -> {
