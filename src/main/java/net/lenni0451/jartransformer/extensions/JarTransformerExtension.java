@@ -3,40 +3,42 @@ package net.lenni0451.jartransformer.extensions;
 import net.lenni0451.jartransformer.transformers.base.DependencyTransformer;
 import net.lenni0451.jartransformer.transformers.base.JarTransformer;
 import org.gradle.api.Action;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
-import org.gradle.api.provider.ListProperty;
 
 import javax.inject.Inject;
-import java.util.ArrayList;
-import java.util.List;
 
 public abstract class JarTransformerExtension {
 
     private final Project project;
+    private final NamedDomainObjectContainer<DependencyTransformer> dependencyTransformers;
+    private final NamedDomainObjectContainer<JarTransformer> jarTransformers;
 
     @Inject
     public JarTransformerExtension(final Project project) {
         this.project = project;
+        this.dependencyTransformers = project.getObjects().domainObjectContainer(DependencyTransformer.class, name -> project.getObjects().newInstance(DependencyTransformer.class, name, project.getObjects()));
+        this.jarTransformers = project.getObjects().domainObjectContainer(JarTransformer.class, name -> project.getObjects().newInstance(JarTransformer.class, name, project.getObjects(), project.getLayout().getBuildDirectory().dir("libs").get()));
     }
 
-    public abstract ListProperty<DependencyTransformer> getDependencyTransformers();
+    public NamedDomainObjectContainer<DependencyTransformer> getDependencyTransformers() {
+        return this.dependencyTransformers;
+    }
 
-    public abstract ListProperty<JarTransformer> getJarTransformers();
+    public NamedDomainObjectContainer<JarTransformer> getJarTransformers() {
+        return this.jarTransformers;
+    }
 
     public void dependency(final Action<? super DependencyTransformer> action) {
-        List<DependencyTransformer> dependencyTransformers = new ArrayList<>(this.getDependencyTransformers().get());
-        DependencyTransformer dependencyTransformer = this.project.getObjects().newInstance(DependencyTransformer.class, "dependencyTransformer" + dependencyTransformers.size(), this.project.getObjects());
-        dependencyTransformers.add(dependencyTransformer);
-        this.getDependencyTransformers().set(dependencyTransformers);
+        DependencyTransformer dependencyTransformer = this.project.getObjects().newInstance(DependencyTransformer.class, "dependencyTransformer" + this.dependencyTransformers.size(), this.project.getObjects());
         action.execute(dependencyTransformer);
+        this.dependencyTransformers.add(dependencyTransformer);
     }
 
     public void jar(final Action<? super JarTransformer> action) {
-        List<JarTransformer> jarTransformers = new ArrayList<>(this.getJarTransformers().get());
-        JarTransformer jarTransformer = this.project.getObjects().newInstance(JarTransformer.class, "jarTransformer" + jarTransformers.size(), this.project.getObjects(), this.project.getLayout().getBuildDirectory().dir("libs").get());
-        jarTransformers.add(jarTransformer);
-        this.getJarTransformers().set(jarTransformers);
+        JarTransformer jarTransformer = this.project.getObjects().newInstance(JarTransformer.class, "jarTransformer" + this.jarTransformers.size(), this.project.getObjects(), this.project.getLayout().getBuildDirectory().dir("libs").get());
         action.execute(jarTransformer);
+        this.jarTransformers.add(jarTransformer);
     }
 
 }

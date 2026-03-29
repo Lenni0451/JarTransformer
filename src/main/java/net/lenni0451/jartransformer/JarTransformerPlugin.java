@@ -11,9 +11,7 @@ import net.lenni0451.jartransformer.transformers.base.JarTransformer;
 import net.lenni0451.jartransformer.transforms.DependencyTransformAction;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.tasks.TaskProvider;
@@ -46,46 +44,47 @@ public class JarTransformerPlugin implements Plugin<Project> {
         });
 
         JarTransformerExtension jarTransformerExtension = target.getExtensions().create("jarTransformer", JarTransformerExtension.class);
+        Map<Class<?>, SpecializedTransformerList<?>> specializedTransformers = new HashMap<>();
+        jarTransformerExtension.getDependencyTransformers().all(dependencyTransformer -> {
+            this.applyDependencyTransformer(target, dependencyTransformer, specializedTransformers);
+        });
+        jarTransformerExtension.getJarTransformers().all(jarTransformer -> {
+            this.applyJarTransformer(target, jarTransformer, specializedTransformers);
+        });
         target.afterEvaluate(project -> {
-            Map<Class<?>, SpecializedTransformerList<?>> specializedTransformers = new HashMap<>();
-
-            this.applyDependencyTransformers(project, jarTransformerExtension, specializedTransformers);
-            this.applyJarTransformers(project, jarTransformerExtension, specializedTransformers);
-
             for (SpecializedTransformerList<?> specializedTransformerList : specializedTransformers.values()) {
                 specializedTransformerList.invoke(project);
             }
         });
     }
 
-    private void applyDependencyTransformers(final Project project, final JarTransformerExtension extension, final Map<Class<?>, SpecializedTransformerList<?>> specializedTransformers) {
-        for (DependencyTransformer dependencyTransformer : extension.getDependencyTransformers().get()) {
-            Configuration configuration = dependencyTransformer.getConfiguration().get();
-            String jarType = "dependencyTransform-" + configuration.getName();
-            for (Dependency dependency : configuration.getAllDependencies()) {
-                if (!(dependency instanceof ModuleDependency moduleDependency)) continue;
+    private void applyDependencyTransformer(final Project project, final DependencyTransformer dependencyTransformer, final Map<Class<?>, SpecializedTransformerList<?>> specializedTransformers) {
+        Configuration configuration = dependencyTransformer.getConfiguration().get();
+        String jarType = "dependencyTransform-" + configuration.getName();
+
+        configuration.getAllDependencies().all(dependency -> {
+            if (dependency instanceof ModuleDependency moduleDependency) {
                 moduleDependency.attributes(attributeContainer -> attributeContainer.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, jarType));
             }
-            project.getDependencies().registerTransform(DependencyTransformAction.class, transform -> {
+        });
+        project.getAllprojects().forEach(p -> {
+            p.getDependencies().registerTransform(DependencyTransformAction.class, transform -> {
                 transform.getParameters().getTransformers().set(dependencyTransformer.getTransformers());
                 transform.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
                 transform.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, jarType);
             });
+        });
 
-            this.checkSpecializedTransformers(dependencyTransformer.getTransformers().get(), specializedTransformers, dependencyTransformer);
-        }
+        this.checkSpecializedTransformers(dependencyTransformer.getTransformers().get(), specializedTransformers, dependencyTransformer);
     }
 
-    private void applyJarTransformers(final Project project, final JarTransformerExtension extension, final Map<Class<?>, SpecializedTransformerList<?>> specializedTransformers) {
-        Task buildTask = project.getTasks().findByName("build");
-        for (JarTransformer jarTransformer : extension.getJarTransformers().get()) {
-            JarTransformTask task = project.getTasks().register("jarTransform-" + jarTransformer.getInputFile().get().getAsFile().getName(), JarTransformTask.class, thiz -> {
-                thiz.getJarTransformer().set(jarTransformer);
-            }).get();
-            if (buildTask != null) buildTask.finalizedBy(task);
+    private void applyJarTransformer(final Project project, final JarTransformer jarTransformer, final Map<Class<?>, SpecializedTransformerList<?>> specializedTransformers) {
+        TaskProvider<JarTransformTask> task = project.getTasks().register("jarTransform-" + jarTransformer.getInputFile().get().getAsFile().getName(), JarTransformTask.class, thiz -> {
+            thiz.getJarTransformer().set(jarTransformer);
+        });
+        project.getTasks().matching(t -> t.getName().equals("build")).all(t -> t.finalizedBy(task));
 
-            this.checkSpecializedTransformers(jarTransformer.getTransformers().get(), specializedTransformers, jarTransformer);
-        }
+        this.checkSpecializedTransformers(jarTransformer.getTransformers().get(), specializedTransformers, jarTransformer);
     }
 
     private void checkSpecializedTransformers(final List<Transformer> transformers, final Map<Class<?>, SpecializedTransformerList<?>> specializedTransformers, final Object context) {
