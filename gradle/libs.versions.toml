@@ -1,6 +1,6 @@
 [versions]
 asm = "9.9.1"
-classtransform = "1.14.1"
+classtransform = "1.15.0"
 
 [libraries]
 findbugs = { module = "com.google.code.findbugs:jsr305", version = "3.0.2" }
