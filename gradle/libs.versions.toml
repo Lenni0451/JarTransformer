@@ -1,5 +1,5 @@
 [versions]
-asm = "9.11"
+asm = "9.11.1"
 classtransform = "1.15.1"
 
 [libraries]
