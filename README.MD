@@ -279,5 +279,23 @@ classTransform {
     // Add dependencies to the compilation classpath of ClassTransform transformers
     // This allows transformers to reference classes and methods from these dependencies
     classpath.from(configurations.runtimeClasspath)
+
+    // Classpath for hook implementations loaded via ServiceLoader
+    // The "transformerHooks" configuration is added automatically, so you can simply
+    // add dependencies to it: dependencies { transformerHooks("com.example:my-hooks:1.0") }
+    hookClasspath.from(files("libs/my-hooks.jar"))
+
+    // Inline hooks can be registered directly in the build script
+    // All three hooks are SAM interfaces and run inside the transform pipeline
+    bytecodeTransformer { name, bytecode, calculateStackMapFrames -> null }
+    rawTransformer "com.example.Target", { transformerManager, classNode -> classNode }
+    postTransformer { name, bytecode -> }
 }
 ```
+
+Hooks are also discovered from the `transformerHooks` configuration and the `hookClasspath` collection via `ServiceLoader`.\
+Implement `IBytecodeTransformer`, `IPostTransformer` or `IRawTransformer` and register them in `META-INF/services`.\
+`IRawTransformer` implementations additionally need a `@CTransformer` annotation declaring their target class(es).
+
+Hooks are runtime objects working on raw bytecode, unlike the annotation-based transformer classes in `src/transformers/java` which are parsed as bytecode donors and never instantiated.\
+They are executed in the ClassTransform pipeline order: bytecode transformers first, then raw transformers, then the annotation transformers, and post transformers last.

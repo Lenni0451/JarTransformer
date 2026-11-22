@@ -12,6 +12,9 @@ import net.lenni0451.jartransformer.transforms.DependencyTransformAction;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ConfigurationContainer;
+import org.gradle.api.artifacts.DependencyScopeConfiguration;
+import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.tasks.TaskProvider;
@@ -26,6 +29,14 @@ public class JarTransformerPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project target) {
+        ConfigurationContainer configurations = target.getConfigurations();
+        NamedDomainObjectProvider<DependencyScopeConfiguration> transformerHooks = configurations.dependencyScope("transformerHooks", conf ->
+                conf.setDescription("Dependencies for ClassTransform hook implementations"));
+        configurations.resolvable("transformerHooksClasspath", conf -> {
+            conf.setDescription("Resolved classpath for ClassTransform hook implementations");
+            conf.extendsFrom(transformerHooks.get());
+        });
+
         JarMergerExtension jarMergerExtension = target.getExtensions().create("jarMerger", JarMergerExtension.class);
         target.afterEvaluate(project -> {
             if (jarMergerExtension.getFileName().isPresent()) {
