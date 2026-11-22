@@ -6,6 +6,7 @@ It also includes a jar merger to provide a merged jar file with all dependencies
   - [Usage](#usage)
   - [Transformers](#transformers)
     - [RepackageTransformer](#repackagetransformer)
+    - [RemapTransformer](#remaptransformer)
     - [ExcludeTransformer](#excludetransformer)
     - [AccessTransformer](#accesstransformer)
     - [StringReplaceTransformer](#stringreplacetransformer)
@@ -95,6 +96,8 @@ The whitelist and blacklist can be mixed to control which files are transformed.
 ```groovy
 repackage {
     // Whitelist of paths to transform
+    // Entries are matched as directory prefixes (e.g. "com/example" also
+    // matches "com/example/sub", but not "com/examplepkg")
     whitelist = [
         // Only transform files in the "com/example" package
         "com/example",
@@ -138,6 +141,8 @@ repackage {
     remapServices = true // Default: true
 
     // Whether to remap the manifest in the jar file
+    // Unchanged entries keep their original formatting; remapped entries are
+    // rewritten (signed jars will be invalidated)
     remapManifest = true // Default: true
 
     // Whether to remove empty directories in the jar file
@@ -148,7 +153,73 @@ repackage {
 
     // Whether to remap log4j plugin classes
     // This is only required when repackaging log4j itself
-    remapLog4jPlugins = true; // Default: true
+    remapLog4jPlugins = true // Default: true
+}
+```
+
+### RemapTransformer
+This transformer can be used to remap classes, fields and methods in the jar file using a mappings file.\
+It supports remapping of classes, class members, package names, strings, services and the manifest.\
+The whitelist and blacklist can be mixed to control which files are transformed.
+```groovy
+remap {
+    // The mappings file to load
+    mappingFile = layout.projectDirectory.file("mappings.txt")
+
+    // The format of the mappings file
+    // Possible values: auto (detect the format from the file content)
+    //                  proguard (Proguard mappings)
+    //                  retroguard (Retroguard mappings)
+    //                  srg/xsrg (SRG and XSRG mappings)
+    //                  tsrg/tsrg_v1 (TSRG v1 mappings)
+    //                  tiny/tiny_v1 (Tiny v1 mappings)
+    //                  tiny_v2 (Tiny v2 mappings)
+    format = "auto" // Default: "auto"
+
+    // The namespaces to use when loading tiny mappings
+    // Not used for other mapping formats
+    fromNamespace = "official" // Default: "official"
+    toNamespace = "named" // Default: "named"
+
+    // Whether to reverse the mappings (to -> from)
+    reverse = false // Default: false
+
+    // Whether to copy member mappings of super classes to their subclasses
+    // This is required for the correct remapping of fields and methods
+    fillSuperMembers = true // Default: true
+
+    // Whitelist of paths to transform
+    // Entries are matched as directory prefixes (see repackage transformer)
+    whitelist = [
+        "com/example",
+    ]
+
+    // Blacklist of paths to not transform
+    blacklist = [
+        "com/example/internal",
+    ]
+
+    // Whether to move classes and resources to the new package structure
+    // Resources are moved if their path matches a package mapping
+    moveFiles = true // Default: true
+
+    // Whether to remap strings inside classes
+    // Disabled by default, because it could easily break things
+    remapStrings = false // Default: false
+
+    // Whether to remap services in the jar file
+    remapServices = true // Default: true
+
+    // Whether to remap the manifest in the jar file
+    // Unchanged entries keep their original formatting; remapped entries are
+    // rewritten (signed jars will be invalidated)
+    remapManifest = true // Default: true
+
+    // Whether to remap log4j plugin classes
+    remapLog4jPlugins = true // Default: true
+
+    // Whether to remove empty directories in the jar file
+    removeEmptyDirs = false // Default: false
 }
 ```
 

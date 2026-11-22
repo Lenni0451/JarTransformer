@@ -43,6 +43,10 @@ public abstract class BaseTransformer {
         this.add("repackageTransformer", RepackageTransformer.class, action);
     }
 
+    public void remap(final Action<? super RemapTransformer> action) {
+        this.add("remapTransformer", RemapTransformer.class, action);
+    }
+
     public void exclude(final Action<? super ExcludeTransformer> action) {
         this.add("excludeTransformer", ExcludeTransformer.class, action);
     }
