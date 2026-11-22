@@ -7,11 +7,15 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.*;
 import org.slf4j.Logger;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.function.Function;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
 
 @UtilityClass
 public class RemapUtils {
@@ -20,6 +24,16 @@ public class RemapUtils {
      * The path prefix of multi-release jar versioned entries.
      */
     public static final String VERSIONS_PREFIX = "meta-inf/versions/";
+
+    /**
+     * The path prefix of service files.
+     */
+    public static final String SERVICES_PREFIX = "meta-inf/services/";
+
+    /**
+     * The file name of the jar manifest.
+     */
+    public static final String MANIFEST_FILE_NAME = "manifest.mf";
 
     /**
      * Remap a class name in dot or slash notation using the given remap function.<br>
@@ -139,22 +153,20 @@ public class RemapUtils {
     }
 
     /**
-     * Remap the name of a service file and the service implementations inside.<br>
-     * Does nothing if the file is not inside {@code META-INF/services/}.
+     * Remap the service implementations inside a service file.<br>
+     * Does nothing if the file is not inside {@code META-INF/services/}.<br>
+     * The file itself is not renamed; service names are relocated through the path remap
+     * (see {@link #servicePathRemap}).
      *
      * @param log        The logger to use
-     * @param fileSystem The jar file system
      * @param path       The path of the service file
      * @param pathString The normalized path of the file (without leading slash)
-     * @param slash      If the original path had a leading slash
      * @param remap      The remap function returning the new name or {@code null} if unchanged
      * @throws IOException If an error occurs while remapping the service file
      */
-    public static void remapServiceFile(final Logger log, final FileSystem fileSystem, final Path path, final String pathString, final boolean slash, final Function<String, String> remap) throws IOException {
-        if (!pathString.toLowerCase(Locale.ROOT).startsWith("meta-inf/services/")) return;
+    public static void remapServiceFile(final Logger log, final Path path, final String pathString, final Function<String, String> remap) throws IOException {
+        if (!pathString.toLowerCase(Locale.ROOT).startsWith(SERVICES_PREFIX)) return;
 
-        String serviceName = pathString.substring("META-INF/services/".length());
-        String remappedServiceName = remap.apply(serviceName);
         String[] serviceImpls = Files.readAllLines(path, StandardCharsets.UTF_8).toArray(new String[0]);
         String[] remappedServiceImpls = new String[serviceImpls.length];
         boolean modified = false;
@@ -172,17 +184,31 @@ public class RemapUtils {
             Files.writeString(path, String.join("\n", remappedServiceImpls) + "\n");
             log.info("Remapped service implementations: {} -> {}", String.join(", ", serviceImpls), String.join(", ", remappedServiceImpls));
         }
-        if (remappedServiceName != null && !serviceName.equals(remappedServiceName)) {
-            Path newPath = fileSystem.getPath((slash ? "/" : "") + "META-INF/services/" + remappedServiceName);
-            Files.move(path, newPath);
-            log.info("Remapped service name: {} -> {}", serviceName, remappedServiceName);
-        }
+    }
+
+    /**
+     * Wrap a path remap function to also remap the names of service files.<br>
+     * Paths inside {@code META-INF/services/} are treated as dot notation class names and remapped
+     * with the name remap function, all other paths are delegated to the path remap function.
+     *
+     * @param pathRemap The path remap function for regular paths
+     * @param nameRemap The remap function for the service names
+     * @return The combined path remap function
+     */
+    public static Function<String, String> servicePathRemap(final Function<String, String> pathRemap, final Function<String, String> nameRemap) {
+        return path -> {
+            if (path.toLowerCase(Locale.ROOT).startsWith(SERVICES_PREFIX)) {
+                String name = path.substring(SERVICES_PREFIX.length());
+                String remapped = nameRemap.apply(name);
+                return remapped == null ? null : "META-INF/services/" + remapped;
+            }
+            return pathRemap.apply(path);
+        };
     }
 
     /**
      * Remap the attribute values of a manifest file.<br>
-     * Does nothing if the file is not a manifest file.<br>
-     * Unchanged entries are written back byte-identical to keep the original order and formatting.
+     * Does nothing if the file is not a manifest file.
      *
      * @param log   The logger to use
      * @param path  The path of the manifest file
@@ -190,80 +216,33 @@ public class RemapUtils {
      * @throws IOException If an error occurs while remapping the manifest
      */
     public static void remapManifestFile(final Logger log, final Path path, final Function<String, String> remap) throws IOException {
-        if (!path.getFileName().toString().equalsIgnoreCase("manifest.mf")) return;
+        if (!path.getFileName().toString().equalsIgnoreCase(MANIFEST_FILE_NAME)) return;
 
-        String content = Files.readString(path, StandardCharsets.UTF_8);
-        String eol = content.contains("\r\n") ? "\r\n" : "\n";
-
-        List<String> entries = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        int pos = 0;
-        while (pos < content.length()) {
-            int nl = content.indexOf('\n', pos);
-            String line = nl == -1 ? content.substring(pos) : content.substring(pos, nl + 1);
-            pos = nl == -1 ? content.length() : nl + 1;
-            if (!stripEol(line).startsWith(" ") && !current.isEmpty()) {
-                entries.add(current.toString());
-                current.setLength(0);
-            }
-            current.append(line);
+        Manifest manifest;
+        try (InputStream is = Files.newInputStream(path)) {
+            manifest = new Manifest(is);
         }
-        if (!current.isEmpty()) entries.add(current.toString());
+        List<Attributes> allAttributes = new ArrayList<>();
+        allAttributes.add(manifest.getMainAttributes());
+        allAttributes.addAll(manifest.getEntries().values());
 
         boolean modified = false;
-        StringBuilder out = new StringBuilder(content.length());
-        for (String entry : entries) {
-            String rewritten = remapManifestEntry(entry, remap, eol);
-            modified |= !rewritten.equals(entry);
-            out.append(rewritten);
+        for (Attributes attributes : allAttributes) {
+            for (Map.Entry<Object, Object> entry : attributes.entrySet()) {
+                String value = entry.getValue().toString();
+                String remappedValue = remap.apply(value);
+                if (remappedValue != null && !value.equals(remappedValue)) {
+                    entry.setValue(remappedValue);
+                    modified = true;
+                }
+            }
         }
         if (modified) {
-            Files.writeString(path, out.toString(), StandardCharsets.UTF_8);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            manifest.write(baos);
+            Files.write(path, baos.toByteArray());
             log.info("Remapped manifest: {}", path);
         }
-    }
-
-    private static String remapManifestEntry(final String entry, final Function<String, String> remap, final String eol) {
-        int firstBreak = entry.indexOf('\n');
-        String first = firstBreak == -1 ? stripEol(entry) : stripEol(entry.substring(0, firstBreak + 1));
-        int sep = first.indexOf(": ");
-        if (sep == -1) return entry;
-
-        String key = first.substring(0, sep);
-        StringBuilder value = new StringBuilder(first.substring(sep + 2));
-        int pos = firstBreak == -1 ? entry.length() : firstBreak + 1;
-        while (pos < entry.length()) {
-            int nl = entry.indexOf('\n', pos);
-            String line = nl == -1 ? entry.substring(pos) : entry.substring(pos, nl + 1);
-            pos = nl == -1 ? entry.length() : nl + 1;
-            String bare = stripEol(line);
-            if (!bare.startsWith(" ")) break;
-            value.append(bare.substring(1));
-        }
-
-        String valueStr = value.toString();
-        String remapped = remap.apply(valueStr);
-        if (remapped == null || remapped.equals(valueStr)) return entry;
-        return wrapManifestEntry(key, remapped, eol);
-    }
-
-    private static String wrapManifestEntry(final String key, final String value, final String eol) {
-        byte[] valueBytes = value.getBytes(StandardCharsets.UTF_8);
-        StringBuilder out = new StringBuilder(key.length() + 2 + valueBytes.length).append(key).append(": ");
-        int first = Math.min(valueBytes.length, Math.max(0, 72 - out.length()));
-        out.append(new String(valueBytes, 0, first, StandardCharsets.UTF_8)).append(eol);
-        for (int pos = first; pos < valueBytes.length; pos += 71) {
-            int len = Math.min(valueBytes.length - pos, 71);
-            out.append(' ').append(new String(valueBytes, pos, len, StandardCharsets.UTF_8)).append(eol);
-        }
-        return out.toString();
-    }
-
-    private static String stripEol(final String line) {
-        int len = line.length();
-        if (len > 0 && line.charAt(len - 1) == '\n') len--;
-        if (len > 0 && line.charAt(len - 1) == '\r') len--;
-        return line.substring(0, len);
     }
 
     /**
@@ -297,6 +276,41 @@ public class RemapUtils {
             Files.write(path, pluginCache.serialize());
             log.info("Remapped Log4J plugins: {}", path);
         }
+    }
+
+    /**
+     * Move a file to its remapped path inside the jar file system.<br>
+     * For multi-release jar entries below {@code META-INF/versions/} the remap function is only
+     * applied to the part after the version directory and the version prefix is kept.<br>
+     * Fails with an {@link IllegalStateException} if the target path already exists.
+     *
+     * @param log        The logger to use
+     * @param fileSystem The jar file system
+     * @param path       The path of the file to move
+     * @param pathString The normalized path of the file (without leading slash)
+     * @param slash      If the original path had a leading slash
+     * @param pathRemap  The remap function working on the internal (slash) path
+     * @throws IOException If an error occurs while moving the file
+     */
+    public static void moveRemappedFile(final Logger log, final FileSystem fileSystem, final Path path, final String pathString, final boolean slash, final Function<String, String> pathRemap) throws IOException {
+        String target;
+        if (pathString.toLowerCase(Locale.ROOT).startsWith(VERSIONS_PREFIX)) {
+            int versionEnd = pathString.indexOf('/', VERSIONS_PREFIX.length()) + 1;
+            if (versionEnd <= 0) return;
+            String remappedSuffix = pathRemap.apply(pathString.substring(versionEnd));
+            target = remappedSuffix == null ? null : pathString.substring(0, versionEnd) + remappedSuffix;
+        } else {
+            target = pathRemap.apply(pathString);
+        }
+        if (target == null || target.equals(pathString)) return;
+
+        Path newPath = fileSystem.getPath((slash ? "/" : "") + target);
+        if (Files.exists(newPath)) {
+            throw new IllegalStateException("Remap collision: " + path + " cannot be moved to existing path " + newPath);
+        }
+        Files.createDirectories(newPath.getParent());
+        Files.move(path, newPath);
+        log.debug("Remapped file: {} -> {}", path, newPath);
     }
 
     /**

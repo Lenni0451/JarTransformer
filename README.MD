@@ -138,11 +138,12 @@ repackage {
     remapStrings = false // Default: false
 
     // Whether to remap services in the jar file
+    // The service file is only renamed when moveFiles is also enabled
     remapServices = true // Default: true
 
     // Whether to remap the manifest in the jar file
-    // Unchanged entries keep their original formatting; remapped entries are
-    // rewritten (signed jars will be invalidated)
+    // The whole manifest is rewritten when an entry is remapped
+    // (signed jars will be invalidated)
     remapManifest = true // Default: true
 
     // Whether to remove empty directories in the jar file
@@ -208,11 +209,12 @@ remap {
     remapStrings = false // Default: false
 
     // Whether to remap services in the jar file
+    // The service file is only renamed when moveFiles is also enabled
     remapServices = true // Default: true
 
     // Whether to remap the manifest in the jar file
-    // Unchanged entries keep their original formatting; remapped entries are
-    // rewritten (signed jars will be invalidated)
+    // The whole manifest is rewritten when an entry is remapped
+    // (signed jars will be invalidated)
     remapManifest = true // Default: true
 
     // Whether to remap log4j plugin classes

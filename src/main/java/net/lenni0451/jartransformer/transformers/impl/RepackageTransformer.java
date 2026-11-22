@@ -83,6 +83,7 @@ public abstract class RepackageTransformer extends Transformer {
 
     private void remap(final Logger log, final FileSystem fileSystem, final PackageRemapper remapper) throws IOException {
         Function<String, String> remapFunction = s -> RemapUtils.remap(remapper, s);
+        Function<String, String> pathRemap = this.getRemapServices().get() ? RemapUtils.servicePathRemap(remapper::mapUnchecked, remapFunction) : remapper::mapUnchecked;
         this.iterateFiles(fileSystem, path -> {
             try {
                 String pathString = path.toString();
@@ -92,31 +93,13 @@ public abstract class RepackageTransformer extends Transformer {
                 if (path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".class")) {
                     this.remapClass(log, path, remapper);
                 } else if (pathString.toLowerCase(Locale.ROOT).startsWith("meta-inf/")) {
-                    if (this.getRemapServices().get()) RemapUtils.remapServiceFile(log, fileSystem, path, pathString, slash, remapFunction);
+                    if (this.getRemapServices().get()) RemapUtils.remapServiceFile(log, path, pathString, remapFunction);
                     if (this.getRemapManifest().get()) RemapUtils.remapManifestFile(log, path, remapFunction);
                     if (this.getRemapLog4jPlugins().get()) RemapUtils.remapLog4jPluginsFile(log, path, pathString, remapFunction);
                 }
 
                 if (this.getMoveFiles().get()) {
-                    if (pathString.toLowerCase(Locale.ROOT).startsWith(RemapUtils.VERSIONS_PREFIX)) {
-                        String prefix = pathString.substring(0, pathString.indexOf('/', RemapUtils.VERSIONS_PREFIX.length()) + 1);
-                        String suffix = pathString.substring(prefix.length());
-                        String remappedSuffix = remapper.mapUnchecked(suffix);
-                        if (remappedSuffix != null && !suffix.equals(remappedSuffix)) {
-                            Path newPath = fileSystem.getPath((slash ? "/" : "") + prefix + remappedSuffix);
-                            Files.createDirectories(newPath.getParent());
-                            Files.move(path, newPath);
-                            log.debug("Remapped versioned file: {} -> {}", path, newPath);
-                        }
-                    } else {
-                        String remappedPath = remapper.mapUnchecked(pathString);
-                        if (remappedPath != null && !pathString.equals(remappedPath)) {
-                            Path newPath = fileSystem.getPath((slash ? "/" : "") + remappedPath);
-                            Files.createDirectories(newPath.getParent());
-                            Files.move(path, newPath);
-                            log.debug("Remapped file: {} -> {}", path, newPath);
-                        }
-                    }
+                    RemapUtils.moveRemappedFile(log, fileSystem, path, pathString, slash, pathRemap);
                 }
             } catch (Throwable t) {
                 log.error("Failed to remap file: {}", path, t);

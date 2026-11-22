@@ -34,7 +34,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -191,13 +191,14 @@ public abstract class RemapTransformer extends Transformer {
         String content = this.decode(bytes);
         int newLine = content.indexOf('\n');
         if (newLine != -1 && content.substring(0, newLine).trim().startsWith("tsrg")) {
-            return content.substring(newLine + 1).getBytes(Charset.defaultCharset());
+            return content.substring(newLine + 1).getBytes(StandardCharsets.UTF_8);
         }
         return bytes;
     }
 
     private String decode(final byte[] bytes) {
-        String content = new String(bytes, Charset.defaultCharset());
+        //TODO: MappingsLoader internally decodes with the platform default charset instead of UTF-8
+        String content = new String(bytes, StandardCharsets.UTF_8);
         return content.startsWith("\uFEFF") ? content.substring(1) : content;
     }
 
@@ -223,7 +224,8 @@ public abstract class RemapTransformer extends Transformer {
             String mapped = mappings.map(internal);
             return mapped.equals(internal) ? null : mapped;
         });
-        Function<String, String> pathRemap = this.createPathRemapFunction(mappings);
+        Function<String, String> packageRemap = this.createPathRemapFunction(mappings);
+        Function<String, String> pathRemap = this.getRemapServices().get() ? RemapUtils.servicePathRemap(packageRemap, remapFunction) : packageRemap;
         this.iterateFiles(fileSystem, path -> {
             try {
                 String pathString = path.toString();
@@ -234,12 +236,12 @@ public abstract class RemapTransformer extends Transformer {
                     this.remapClass(log, fileSystem, path, pathString, slash, mappings, remapFunction);
                 } else {
                     if (pathString.toLowerCase(Locale.ROOT).startsWith("meta-inf/")) {
-                        if (this.getRemapServices().get()) RemapUtils.remapServiceFile(log, fileSystem, path, pathString, slash, remapFunction);
+                        if (this.getRemapServices().get()) RemapUtils.remapServiceFile(log, path, pathString, remapFunction);
                         if (this.getRemapManifest().get()) RemapUtils.remapManifestFile(log, path, remapFunction);
                         if (this.getRemapLog4jPlugins().get()) RemapUtils.remapLog4jPluginsFile(log, path, pathString, remapFunction);
                     }
                     if (this.getMoveFiles().get()) {
-                        this.moveFile(log, fileSystem, path, pathString, slash, pathRemap);
+                        RemapUtils.moveRemappedFile(log, fileSystem, path, pathString, slash, pathRemap);
                     }
                 }
             } catch (Throwable t) {
@@ -258,8 +260,7 @@ public abstract class RemapTransformer extends Transformer {
         }
         for (Map.Entry<String, String> entry : mappings.getClassMappings().entrySet()) {
             int fromSlash = entry.getKey().lastIndexOf('/');
-            if (fromSlash == -1) continue;
-            String fromPkg = entry.getKey().substring(0, fromSlash + 1);
+            String fromPkg = fromSlash == -1 ? "" : entry.getKey().substring(0, fromSlash + 1);
             int toSlash = entry.getValue().lastIndexOf('/');
             String toPkg = toSlash == -1 ? "" : entry.getValue().substring(0, toSlash + 1);
             if (!fromPkg.equals(toPkg)) prefixes.putIfAbsent(fromPkg, toPkg);
@@ -276,30 +277,6 @@ public abstract class RemapTransformer extends Transformer {
         };
     }
 
-    private void moveFile(final Logger log, final FileSystem fileSystem, final Path path, final String pathString, final boolean slash, final Function<String, String> pathRemap) throws IOException {
-        if (pathString.toLowerCase(Locale.ROOT).startsWith(RemapUtils.VERSIONS_PREFIX)) {
-            int versionEnd = pathString.indexOf('/', RemapUtils.VERSIONS_PREFIX.length()) + 1;
-            if (versionEnd <= 0) return;
-            String prefix = pathString.substring(0, versionEnd);
-            String suffix = pathString.substring(versionEnd);
-            String remappedSuffix = pathRemap.apply(suffix);
-            if (remappedSuffix != null && !suffix.equals(remappedSuffix)) {
-                Path newPath = fileSystem.getPath((slash ? "/" : "") + prefix + remappedSuffix);
-                Files.createDirectories(newPath.getParent());
-                Files.move(path, newPath);
-                log.debug("Remapped versioned file: {} -> {}", path, newPath);
-            }
-        } else {
-            String remappedPath = pathRemap.apply(pathString);
-            if (remappedPath != null && !pathString.equals(remappedPath)) {
-                Path newPath = fileSystem.getPath((slash ? "/" : "") + remappedPath);
-                Files.createDirectories(newPath.getParent());
-                Files.move(path, newPath);
-                log.debug("Remapped file: {} -> {}", path, newPath);
-            }
-        }
-    }
-
     private void remapClass(final Logger log, final FileSystem fileSystem, final Path path, final String pathString, final boolean slash, final Mappings mappings, final Function<String, String> remapFunction) throws IOException {
         byte[] bytes = Files.readAllBytes(path);
         ClassNode node = ClassIO.fromBytes(bytes);
@@ -314,6 +291,9 @@ public abstract class RemapTransformer extends Transformer {
                 prefix = pathString.substring(0, pathString.indexOf('/', RemapUtils.VERSIONS_PREFIX.length()) + 1);
             }
             Path newPath = fileSystem.getPath((slash ? "/" : "") + prefix + remappedNode.name + ".class");
+            if (Files.exists(newPath)) {
+                throw new IllegalStateException("Remap collision: " + path + " cannot be remapped to existing path " + newPath);
+            }
             Files.createDirectories(newPath.getParent());
             Files.write(newPath, ClassIO.toStacklessBytes(remappedNode));
             Files.delete(path);
