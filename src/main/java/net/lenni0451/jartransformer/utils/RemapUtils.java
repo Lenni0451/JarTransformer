@@ -308,7 +308,7 @@ public class RemapUtils {
         if (Files.exists(newPath)) {
             throw new IllegalStateException("Remap collision: " + path + " cannot be moved to existing path " + newPath);
         }
-        Files.createDirectories(newPath.getParent());
+        if (newPath.getParent() != null) Files.createDirectories(newPath.getParent());
         Files.move(path, newPath);
         log.debug("Remapped file: {} -> {}", path, newPath);
     }

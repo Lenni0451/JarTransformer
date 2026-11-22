@@ -128,7 +128,7 @@ repackage {
     remapClasses = true // Default: true
 
     // Whether to move files in the jar file to the new package structure
-    // Should probably only be set to false if remapClasses is also false
+    // Class files are only moved when remapClasses is enabled
     // Could be useful to remap selected strings after another repackage transformer already moved classes
     moveFiles = true // Default: true
 

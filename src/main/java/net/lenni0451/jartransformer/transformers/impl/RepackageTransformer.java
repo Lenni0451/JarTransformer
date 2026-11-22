@@ -92,6 +92,7 @@ public abstract class RepackageTransformer extends Transformer {
                 if (!RemapUtils.shouldProcess(pathString, this.getWhitelist().get(), this.getBlacklist().get())) return;
                 if (path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".class")) {
                     this.remapClass(log, path, remapper);
+                    if (!this.getRemapClasses().get()) return; //Moving an unmapped class breaks its entry path
                 } else if (pathString.toLowerCase(Locale.ROOT).startsWith("meta-inf/")) {
                     if (this.getRemapServices().get()) RemapUtils.remapServiceFile(log, path, pathString, remapFunction);
                     if (this.getRemapManifest().get()) RemapUtils.remapManifestFile(log, path, remapFunction);

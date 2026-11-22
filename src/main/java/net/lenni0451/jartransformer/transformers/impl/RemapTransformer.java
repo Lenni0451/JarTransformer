@@ -294,7 +294,7 @@ public abstract class RemapTransformer extends Transformer {
             if (Files.exists(newPath)) {
                 throw new IllegalStateException("Remap collision: " + path + " cannot be remapped to existing path " + newPath);
             }
-            Files.createDirectories(newPath.getParent());
+            if (newPath.getParent() != null) Files.createDirectories(newPath.getParent());
             Files.write(newPath, ClassIO.toStacklessBytes(remappedNode));
             Files.delete(path);
             log.debug("Remapped class file: {} -> {}", path, newPath);
