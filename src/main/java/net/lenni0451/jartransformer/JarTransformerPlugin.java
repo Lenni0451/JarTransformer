@@ -30,11 +30,11 @@ public class JarTransformerPlugin implements Plugin<Project> {
     @Override
     public void apply(Project target) {
         ConfigurationContainer configurations = target.getConfigurations();
-        NamedDomainObjectProvider<DependencyScopeConfiguration> transformerHooks = configurations.dependencyScope("transformerHooks", conf ->
-                conf.setDescription("Dependencies for ClassTransform hook implementations"));
-        configurations.resolvable("transformerHooksClasspath", conf -> {
-            conf.setDescription("Resolved classpath for ClassTransform hook implementations");
-            conf.extendsFrom(transformerHooks.get());
+        NamedDomainObjectProvider<DependencyScopeConfiguration> additionalTransformers = configurations.dependencyScope("additionalTransformers", conf ->
+                conf.setDescription("Dependencies for additional ClassTransform transformer implementations"));
+        configurations.resolvable("additionalTransformersClasspath", conf -> {
+            conf.setDescription("Resolved classpath for additional ClassTransform transformer implementations");
+            conf.extendsFrom(additionalTransformers.get());
         });
 
         JarMergerExtension jarMergerExtension = target.getExtensions().create("jarMerger", JarMergerExtension.class);

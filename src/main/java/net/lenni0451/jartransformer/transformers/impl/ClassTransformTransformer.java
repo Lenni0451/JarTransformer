@@ -42,19 +42,13 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
 
 import static net.lenni0451.commons.asm.ASMUtils.dot;
 
 public abstract class ClassTransformTransformer extends Transformer implements SpecializedTransformer<ClassTransformTransformer> {
-
-    private final List<IBytecodeTransformer> bytecodeTransformers = new ArrayList<>();
-    private final Map<String, List<IRawTransformer>> rawTransformers = new LinkedHashMap<>();
-    private final List<IPostTransformer> postTransformers = new ArrayList<>();
 
     @Inject
     public ClassTransformTransformer(final String name) {
@@ -71,52 +65,18 @@ public abstract class ClassTransformTransformer extends Transformer implements S
     public abstract ConfigurableFileCollection getClasspath();
 
     /**
-     * The classpath containing hook implementations loaded via {@link ServiceLoader}.<br>
-     * The {@code transformerHooks} configuration is automatically added to this collection.
+     * The classpath containing additional transformer implementations loaded via {@link ServiceLoader}.<br>
+     * The {@code additionalTransformers} configuration is automatically added to this collection.
      */
     @Optional
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    public abstract ConfigurableFileCollection getHookClasspath();
+    public abstract ConfigurableFileCollection getAdditionalTransformers();
 
     @Optional
     @InputDirectory
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract DirectoryProperty getCompiledClassesDir();
-
-    /**
-     * Add an {@link IBytecodeTransformer} which is applied to the raw bytecode of all classes.
-     *
-     * @param transformer The transformer to add
-     */
-    public void bytecodeTransformer(final IBytecodeTransformer transformer) {
-        this.bytecodeTransformers.add(transformer);
-    }
-
-    /**
-     * Add an {@link IRawTransformer} which is applied to the class node of a single class.
-     *
-     * @param className   The name of the class to transform
-     * @param transformer The transformer to add
-     */
-    public void rawTransformer(final String className, final IRawTransformer transformer) {
-        this.rawTransformers.computeIfAbsent(className, n -> new ArrayList<>()).add(transformer);
-    }
-
-    /**
-     * Add an {@link IPostTransformer} which is applied to the bytecode after all other transformers.
-     *
-     * @param transformer The transformer to add
-     */
-    public void postTransformer(final IPostTransformer transformer) {
-        this.postTransformers.add(transformer);
-    }
-
-    @Override
-    public boolean isCacheable() {
-        //Inline transformers can't be fingerprinted
-        return this.bytecodeTransformers.isEmpty() && this.rawTransformers.isEmpty() && this.postTransformers.isEmpty();
-    }
 
     @Override
     public void transform(Logger log, FileSystem fileSystem) throws Throwable {
@@ -125,16 +85,14 @@ public abstract class ClassTransformTransformer extends Transformer implements S
         if (compiledClassesDir != null && !hasTransformerClasses) {
             log.warn("Compiled classes directory {} for transformer {} does not exist or is not a directory", compiledClassesDir, this.getName());
         }
-        boolean hasInlineHooks = !this.bytecodeTransformers.isEmpty() || !this.rawTransformers.isEmpty() || !this.postTransformers.isEmpty();
-        if (!hasTransformerClasses && !hasInlineHooks && this.getHookClasspath().isEmpty()) {
+        if (!hasTransformerClasses && this.getAdditionalTransformers().isEmpty()) {
             log.info("Nothing to transform for transformer {}, skipping transformation", this.getName());
             return;
         }
 
         TransformerManager transformerManager = new TransformerManager(new FileSystemClassProvider(fileSystem, new BasicClassProvider()));
-        this.registerInlineHooks(transformerManager);
-        try (URLClassLoader hookLoader = this.createHookLoader(log)) {
-            if (hookLoader != null) this.loadServiceHooks(log, transformerManager, hookLoader);
+        try (URLClassLoader transformerLoader = this.createTransformerLoader(log)) {
+            if (transformerLoader != null) this.registerAdditionalTransformers(log, transformerManager, transformerLoader);
             if (hasTransformerClasses) this.iterateFiles(compiledClassesDir.toPath(), path -> {
                 if (!path.getFileName().toString().endsWith(".class")) return;
 
@@ -166,30 +124,16 @@ public abstract class ClassTransformTransformer extends Transformer implements S
         }
     }
 
-    private void registerInlineHooks(final TransformerManager transformerManager) {
-        for (IBytecodeTransformer transformer : this.bytecodeTransformers) {
-            transformerManager.addBytecodeTransformer(transformer);
-        }
-        for (Map.Entry<String, List<IRawTransformer>> entry : this.rawTransformers.entrySet()) {
-            for (IRawTransformer transformer : entry.getValue()) {
-                transformerManager.addRawTransformer(entry.getKey(), transformer);
-            }
-        }
-        for (IPostTransformer transformer : this.postTransformers) {
-            transformerManager.addPostTransformConsumer(transformer);
-        }
-    }
-
-    private void loadServiceHooks(final Logger log, final TransformerManager transformerManager, final URLClassLoader hookLoader) throws IOException {
-        for (IBytecodeTransformer transformer : ServiceLoader.load(IBytecodeTransformer.class, hookLoader)) {
+    private void registerAdditionalTransformers(final Logger log, final TransformerManager transformerManager, final URLClassLoader transformerLoader) throws IOException {
+        for (IBytecodeTransformer transformer : ServiceLoader.load(IBytecodeTransformer.class, transformerLoader)) {
             transformerManager.addBytecodeTransformer(transformer);
             log.info("Registered bytecode transformer: {}", transformer.getClass().getName());
         }
-        for (IPostTransformer transformer : ServiceLoader.load(IPostTransformer.class, hookLoader)) {
+        for (IPostTransformer transformer : ServiceLoader.load(IPostTransformer.class, transformerLoader)) {
             transformerManager.addPostTransformConsumer(transformer);
             log.info("Registered post transformer: {}", transformer.getClass().getName());
         }
-        for (IRawTransformer transformer : ServiceLoader.load(IRawTransformer.class, hookLoader)) {
+        for (IRawTransformer transformer : ServiceLoader.load(IRawTransformer.class, transformerLoader)) {
             Set<String> targets = this.findRawTransformerTargets(transformer);
             if (targets.isEmpty()) {
                 throw new IllegalArgumentException("Raw transformer '" + transformer.getClass().getName() + "' requires a @CTransformer annotation declaring its target class(es)");
@@ -201,11 +145,11 @@ public abstract class ClassTransformTransformer extends Transformer implements S
         }
     }
 
-    private URLClassLoader createHookLoader(final Logger log) {
-        if (this.getHookClasspath().isEmpty()) return null;
-        URL[] urls = this.getHookClasspath().getFiles().stream().filter(file -> {
+    private URLClassLoader createTransformerLoader(final Logger log) {
+        if (this.getAdditionalTransformers().isEmpty()) return null;
+        URL[] urls = this.getAdditionalTransformers().getFiles().stream().filter(file -> {
             if (file.exists()) return true;
-            log.warn("Hook classpath entry does not exist, skipping: {}", file);
+            log.warn("Transformer classpath entry does not exist, skipping: {}", file);
             return false;
         }).map(file -> {
             try {
@@ -258,9 +202,9 @@ public abstract class ClassTransformTransformer extends Transformer implements S
 
     @Override
     public void applySpecialized(Project project, List<ClassTransformTransformer> transformers, List<Object> contexts) {
-        Configuration transformerHooks = project.getConfigurations().getByName("transformerHooksClasspath");
+        Configuration additionalTransformers = project.getConfigurations().getByName("additionalTransformersClasspath");
         for (ClassTransformTransformer transformer : transformers) {
-            transformer.getHookClasspath().from(transformerHooks);
+            transformer.getAdditionalTransformers().from(additionalTransformers);
         }
 
         SourceSet sourceSet = this.registerClassTransformSourceSet(project);
