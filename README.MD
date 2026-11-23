@@ -279,5 +279,17 @@ classTransform {
     // Add dependencies to the compilation classpath of ClassTransform transformers
     // This allows transformers to reference classes and methods from these dependencies
     classpath.from(configurations.runtimeClasspath)
+
+    // Classpath for additional transformer implementations loaded via ServiceLoader
+    // The "additionalTransformers" configuration is added automatically, so you can simply
+    // add dependencies to it: dependencies { additionalTransformers("com.example:my-transformers:1.0") }
+    additionalTransformers.from(files("libs/my-transformers.jar"))
 }
 ```
+
+Additional transformers are discovered from the `additionalTransformers` configuration and collection via `ServiceLoader`.\
+Implement `IBytecodeTransformer`, `IPostTransformer` or `IRawTransformer` and register them in `META-INF/services`.\
+`IRawTransformer` implementations additionally need a `@CTransformer` annotation declaring their target class(es).
+
+Additional transformers are runtime objects working on raw bytecode, unlike the annotation-based transformer classes in `src/transformers/java` which are parsed as bytecode donors and never instantiated.\
+They are executed in the ClassTransform pipeline order: bytecode transformers first, then raw transformers, then the annotation transformers, and post transformers last.
