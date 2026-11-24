@@ -18,11 +18,15 @@ import net.lenni0451.commons.asm.provider.ClassProvider;
 import net.lenni0451.commons.asm.provider.DelegatingClassProvider;
 import net.lenni0451.commons.asm.provider.LoaderClassProvider;
 import net.lenni0451.commons.asm.provider.io.FileSystemClassProvider;
+import net.lenni0451.commons.asm.provider.io.JarFileClassProvider;
+import net.lenni0451.commons.asm.provider.io.PathClassProvider;
 import net.lenni0451.jartransformer.transformers.Transformer;
 import net.lenni0451.jartransformer.utils.RemapUtils;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.PathSensitive;
@@ -39,7 +43,9 @@ import java.io.InputStream;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -55,15 +61,9 @@ public abstract class RemapTransformer extends Transformer {
         this.getFromNamespace().convention("official");
         this.getToNamespace().convention("named");
         this.getReverse().convention(false);
-        this.getFillSuperMembers().convention(true);
         this.getWhitelist().convention(Set.of());
         this.getBlacklist().convention(Set.of());
-        this.getMoveFiles().convention(true);
         this.getRemapStrings().convention(false);
-        this.getRemapServices().convention(true);
-        this.getRemapManifest().convention(true);
-        this.getRemapLog4jPlugins().convention(true);
-        this.getRemoveEmptyDirs().convention(false);
     }
 
     @InputFile
@@ -79,11 +79,11 @@ public abstract class RemapTransformer extends Transformer {
     @Input
     public abstract Property<String> getToNamespace();
 
-    @Input
-    public abstract Property<Boolean> getReverse();
+    @Classpath
+    public abstract ConfigurableFileCollection getClasspath();
 
     @Input
-    public abstract Property<Boolean> getFillSuperMembers();
+    public abstract Property<Boolean> getReverse();
 
     @Input
     public abstract SetProperty<String> getWhitelist();
@@ -92,22 +92,7 @@ public abstract class RemapTransformer extends Transformer {
     public abstract SetProperty<String> getBlacklist();
 
     @Input
-    public abstract Property<Boolean> getMoveFiles();
-
-    @Input
     public abstract Property<Boolean> getRemapStrings();
-
-    @Input
-    public abstract Property<Boolean> getRemapServices();
-
-    @Input
-    public abstract Property<Boolean> getRemapManifest();
-
-    @Input
-    public abstract Property<Boolean> getRemapLog4jPlugins();
-
-    @Input
-    public abstract Property<Boolean> getRemoveEmptyDirs();
 
     @Override
     public void transform(Logger log, FileSystem fileSystem) throws Throwable {
@@ -117,12 +102,12 @@ public abstract class RemapTransformer extends Transformer {
             log.warn("Loaded mappings are empty, nothing to remap");
             return;
         }
-        if (!this.getMoveFiles().get() && (!mappings.getClassMappings().isEmpty() || !mappings.getPackageMappings().isEmpty())) {
-            log.warn("The mappings contain class/package mappings but moveFiles is disabled; remapped classes will keep their old paths and the jar may be broken");
+        boolean movedFiles = !mappings.getClassMappings().isEmpty() || !mappings.getPackageMappings().isEmpty();
+        if (!mappings.getFieldMappings().isEmpty() || !mappings.getMethodMappings().isEmpty()) {
+            this.fillSuperMembers(log, fileSystem, mappings);
         }
-        if (this.getFillSuperMembers().get()) this.fillSuperMembers(log, fileSystem, mappings);
         this.remap(log, fileSystem, mappings);
-        if (this.getRemoveEmptyDirs().get()) RemapUtils.removeEmptyDirectories(log, fileSystem);
+        if (movedFiles) RemapUtils.removeEmptyDirectories(log, fileSystem);
     }
 
     private Mappings loadMappings() throws Throwable {
@@ -166,7 +151,7 @@ public abstract class RemapTransformer extends Transformer {
         };
     }
 
-    private void fillSuperMembers(final Logger log, final FileSystem fileSystem, final Mappings mappings) throws IOException {
+    private void fillSuperMembers(final Logger log, final FileSystem fileSystem, final Mappings mappings) throws Exception {
         Set<String> classes = new HashSet<>();
         this.iterateFiles(fileSystem, path -> {
             if (path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".class")) {
@@ -175,12 +160,31 @@ public abstract class RemapTransformer extends Transformer {
                 }
             }
         });
-        ClassProvider classProvider = new DelegatingClassProvider(new FileSystemClassProvider(fileSystem, false), new LoaderClassProvider());
-        ClassInfoProvider classInfoProvider = ClassInfoProvider.create(classProvider);
-        MappingsFiller.fillAllSuperMembers(mappings, classInfoProvider, classes, (clazz, t) -> {
-            log.warn("Failed to fill super members for class: {}", clazz, t);
-            return true;
-        });
+        try (ClassProvider classProvider = this.createClassProvider(fileSystem)) {
+            ClassInfoProvider classInfoProvider = ClassInfoProvider.create(classProvider);
+            MappingsFiller.fillAllSuperMembers(mappings, classInfoProvider, classes, (clazz, t) -> {
+                log.warn("Failed to fill super members for class: {}", clazz, t);
+                return true;
+            });
+        }
+    }
+
+    private ClassProvider createClassProvider(final FileSystem fileSystem) {
+        List<ClassProvider> providers = new ArrayList<>();
+        providers.add(new FileSystemClassProvider(fileSystem, false));
+        List<File> jars = new ArrayList<>();
+        for (File file : this.getClasspath()) {
+            if (file.isDirectory()) {
+                providers.add(new PathClassProvider(file.toPath()));
+            } else if (file.isFile()) {
+                jars.add(file);
+            } else {
+                throw new IllegalArgumentException("Classpath entry does not exist: " + file.getAbsolutePath());
+            }
+        }
+        if (!jars.isEmpty()) providers.add(JarFileClassProvider.lazyDelegating(jars));
+        providers.add(new LoaderClassProvider());
+        return new DelegatingClassProvider(providers.toArray(new ClassProvider[0]));
     }
 
     private void remap(final Logger log, final FileSystem fileSystem, final Mappings mappings) throws IOException {
@@ -188,8 +192,7 @@ public abstract class RemapTransformer extends Transformer {
             String mapped = mappings.map(internal);
             return mapped.equals(internal) ? null : mapped;
         });
-        Function<String, String> packageRemap = this.createPathRemapFunction(mappings);
-        Function<String, String> pathRemap = this.getRemapServices().get() ? RemapUtils.servicePathRemap(packageRemap, remapFunction) : packageRemap;
+        Function<String, String> pathRemap = RemapUtils.servicePathRemap(this.createPathRemapFunction(mappings), remapFunction);
         this.iterateFiles(fileSystem, path -> {
             try {
                 String pathString = path.toString();
@@ -200,13 +203,11 @@ public abstract class RemapTransformer extends Transformer {
                     this.remapClass(log, fileSystem, path, pathString, slash, mappings, remapFunction);
                 } else {
                     if (pathString.toLowerCase(Locale.ROOT).startsWith("meta-inf/")) {
-                        if (this.getRemapServices().get()) RemapUtils.remapServiceFile(log, path, pathString, remapFunction);
-                        if (this.getRemapManifest().get()) RemapUtils.remapManifestFile(log, path, remapFunction);
-                        if (this.getRemapLog4jPlugins().get()) RemapUtils.remapLog4jPluginsFile(log, path, pathString, remapFunction);
+                        RemapUtils.remapServiceFile(log, path, pathString, remapFunction);
+                        RemapUtils.remapManifestFile(log, path, remapFunction);
+                        RemapUtils.remapLog4jPluginsFile(log, path, pathString, remapFunction);
                     }
-                    if (this.getMoveFiles().get()) {
-                        RemapUtils.moveRemappedFile(log, fileSystem, path, pathString, slash, pathRemap);
-                    }
+                    RemapUtils.moveRemappedFile(log, fileSystem, path, pathString, slash, pathRemap);
                 }
             } catch (Throwable t) {
                 log.error("Failed to remap file: {}", path, t);
@@ -249,7 +250,7 @@ public abstract class RemapTransformer extends Transformer {
         if (this.getRemapStrings().get()) {
             RemapUtils.remapStrings(remappedNode, remapFunction);
         }
-        if (this.getMoveFiles().get() && !oldName.equals(remappedNode.name)) {
+        if (!oldName.equals(remappedNode.name)) {
             String prefix = "";
             if (pathString.toLowerCase(Locale.ROOT).startsWith(RemapUtils.VERSIONS_PREFIX)) {
                 prefix = pathString.substring(0, pathString.indexOf('/', RemapUtils.VERSIONS_PREFIX.length()) + 1);

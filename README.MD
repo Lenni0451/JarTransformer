@@ -160,7 +160,10 @@ repackage {
 
 ### RemapTransformer
 This transformer can be used to remap classes, fields and methods in the jar file using a mappings file.\
-It supports remapping of classes, class members, package names, strings, services and the manifest.\
+It supports remapping of classes, class members, package names, strings, services, the manifest and the log4j plugin cache.\
+Renamed classes and matching resources are moved to their new paths automatically, and emptied directories are removed.\
+Member mappings of super classes are copied to subclasses automatically when the mappings contain member mappings.\
+The manifest is rewritten when an attribute value was remapped (signed jars will be invalidated).\
 The whitelist and blacklist can be mixed to control which files are transformed.
 ```groovy
 remap {
@@ -186,9 +189,9 @@ remap {
     // Whether to reverse the mappings (to -> from)
     reverse = false // Default: false
 
-    // Whether to copy member mappings of super classes to their subclasses
-    // This is required for the correct remapping of fields and methods
-    fillSuperMembers = true // Default: true
+    // The classpath used to resolve super classes when filling member mappings
+    // Only needed when the remapped classes extend classes from external libraries
+    classpath = files("libs/library.jar")
 
     // Whitelist of paths to transform
     // Entries are matched as directory prefixes (see repackage transformer)
@@ -201,28 +204,9 @@ remap {
         "com/example/internal",
     ]
 
-    // Whether to move classes and resources to the new package structure
-    // Resources are moved if their path matches a package mapping
-    moveFiles = true // Default: true
-
     // Whether to remap strings inside classes
     // Disabled by default, because it could easily break things
     remapStrings = false // Default: false
-
-    // Whether to remap services in the jar file
-    // The service file is only renamed when moveFiles is also enabled
-    remapServices = true // Default: true
-
-    // Whether to remap the manifest in the jar file
-    // The whole manifest is rewritten when an entry is remapped
-    // (signed jars will be invalidated)
-    remapManifest = true // Default: true
-
-    // Whether to remap log4j plugin classes
-    remapLog4jPlugins = true // Default: true
-
-    // Whether to remove empty directories in the jar file
-    removeEmptyDirs = false // Default: false
 }
 ```
 
