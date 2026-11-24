@@ -173,11 +173,12 @@ remap {
     //                  retroguard (Retroguard mappings)
     //                  srg/xsrg (SRG and XSRG mappings)
     //                  tsrg/tsrg_v1 (TSRG v1 mappings)
+    //                  tsrg_v2 (TSRG v2 mappings)
     //                  tiny/tiny_v1 (Tiny v1 mappings)
     //                  tiny_v2 (Tiny v2 mappings)
     format = "auto" // Default: "auto"
 
-    // The namespaces to use when loading tiny mappings
+    // The namespaces to use when loading tiny or tsrg v2 mappings
     // Not used for other mapping formats
     fromNamespace = "official" // Default: "official"
     toNamespace = "named" // Default: "named"

@@ -5,6 +5,7 @@ import net.lenni0451.commons.asm.io.ClassIO;
 import net.lenni0451.commons.asm.mappings.Mappings;
 import net.lenni0451.commons.asm.mappings.MappingsFiller;
 import net.lenni0451.commons.asm.mappings.Remapper;
+import net.lenni0451.commons.asm.mappings.loader.MappingsFormat;
 import net.lenni0451.commons.asm.mappings.loader.MappingsLoader;
 import net.lenni0451.commons.asm.mappings.loader.formats.ProguardMappingsLoader;
 import net.lenni0451.commons.asm.mappings.loader.formats.RetroguardMappingsLoader;
@@ -12,6 +13,7 @@ import net.lenni0451.commons.asm.mappings.loader.formats.SrgMappingsLoader;
 import net.lenni0451.commons.asm.mappings.loader.formats.TinyV1MappingsLoader;
 import net.lenni0451.commons.asm.mappings.loader.formats.TinyV2MappingsLoader;
 import net.lenni0451.commons.asm.mappings.loader.formats.TsrgV1MappingsLoader;
+import net.lenni0451.commons.asm.mappings.loader.formats.TsrgV2MappingsLoader;
 import net.lenni0451.commons.asm.provider.ClassProvider;
 import net.lenni0451.commons.asm.provider.DelegatingClassProvider;
 import net.lenni0451.commons.asm.provider.LoaderClassProvider;
@@ -34,13 +36,11 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -138,68 +138,32 @@ public abstract class RemapTransformer extends Transformer {
     }
 
     private MappingsLoader createLoader(final File mappingFile) throws IOException {
-        String format = this.getFormat().get().toLowerCase(Locale.ROOT);
-        return switch (format) {
-            case "auto" -> this.detectFormat(Files.readAllBytes(mappingFile.toPath()));
-            case "proguard" -> new ProguardMappingsLoader(mappingFile.toPath());
-            case "retroguard" -> new RetroguardMappingsLoader(mappingFile.toPath());
-            case "srg", "xsrg" -> new SrgMappingsLoader(mappingFile.toPath());
-            case "tsrg", "tsrg_v1" -> new TsrgV1MappingsLoader(new ByteArrayInputStream(this.stripTsrgHeader(Files.readAllBytes(mappingFile.toPath()))));
-            case "tiny", "tiny_v1" -> new TinyV1MappingsLoader(mappingFile.toPath(), this.getFromNamespace().get(), this.getToNamespace().get());
-            case "tiny_v2" -> new TinyV2MappingsLoader(mappingFile.toPath(), this.getFromNamespace().get(), this.getToNamespace().get());
+        byte[] bytes = Files.readAllBytes(mappingFile.toPath());
+        MappingsFormat format = switch (this.getFormat().get().toLowerCase(Locale.ROOT)) {
+            case "auto" -> {
+                MappingsFormat detected = MappingsFormat.detect(bytes);
+                if (detected == null) throw new IllegalStateException("Could not detect the mapping file format. Please set the format option manually");
+                yield detected;
+            }
+            case "proguard" -> MappingsFormat.PROGUARD;
+            case "retroguard" -> MappingsFormat.RETROGUARD;
+            case "srg", "xsrg" -> MappingsFormat.SRG;
+            case "tsrg", "tsrg_v1" -> MappingsFormat.TSRG_V1;
+            case "tsrg_v2" -> MappingsFormat.TSRG_V2;
+            case "tiny", "tiny_v1" -> MappingsFormat.TINY_V1;
+            case "tiny_v2" -> MappingsFormat.TINY_V2;
             default -> throw new IllegalArgumentException("Unknown mapping format: " + this.getFormat().get());
         };
-    }
-
-    private MappingsLoader detectFormat(final byte[] bytes) {
-        List<String> lines = this.decode(bytes).lines().filter(l -> !l.trim().isEmpty()).toList();
-        if (lines.isEmpty()) throw new IllegalStateException("Mapping file is empty");
-        String first = lines.get(0);
-        if (first.startsWith("tiny\t") || first.startsWith("tiny ")) {
-            String[] parts = first.split("\\s+");
-            if (parts.length > 1) {
-                if (parts[1].equals("2")) {
-                    return new TinyV2MappingsLoader(new ByteArrayInputStream(bytes), this.getFromNamespace().get(), this.getToNamespace().get());
-                } else if (parts[1].equals("1")) {
-                    return new TinyV1MappingsLoader(new ByteArrayInputStream(bytes), this.getFromNamespace().get(), this.getToNamespace().get());
-                }
-                throw new IllegalStateException("Unsupported tiny major version: " + parts[1]);
-            }
-        }
-        if (first.equals("v1") || first.startsWith("v1\t") || first.startsWith("v1 ")) {
-            return new TinyV1MappingsLoader(new ByteArrayInputStream(bytes), this.getFromNamespace().get(), this.getToNamespace().get());
-        }
-        if (first.trim().startsWith("tsrg")) {
-            return new TsrgV1MappingsLoader(new ByteArrayInputStream(this.stripTsrgHeader(bytes)));
-        }
-        for (String line : lines) {
-            String trimmed = line.trim();
-            if (trimmed.startsWith("PK:") || trimmed.startsWith("CL:") || trimmed.startsWith("FD:") || trimmed.startsWith("MD:")) {
-                return new SrgMappingsLoader(new ByteArrayInputStream(bytes));
-            } else if (trimmed.startsWith(".class_map") || trimmed.startsWith(".field_map") || trimmed.startsWith(".method_map")) {
-                return new RetroguardMappingsLoader(new ByteArrayInputStream(bytes));
-            } else if (line.contains(" -> ")) {
-                return new ProguardMappingsLoader(new ByteArrayInputStream(bytes));
-            } else if (line.startsWith("\t")) {
-                return new TsrgV1MappingsLoader(new ByteArrayInputStream(bytes));
-            }
-        }
-        throw new IllegalStateException("Could not detect the mapping file format. Please set the format option manually");
-    }
-
-    private byte[] stripTsrgHeader(final byte[] bytes) {
-        String content = this.decode(bytes);
-        int newLine = content.indexOf('\n');
-        if (newLine != -1 && content.substring(0, newLine).trim().startsWith("tsrg")) {
-            return content.substring(newLine + 1).getBytes(StandardCharsets.UTF_8);
-        }
-        return bytes;
-    }
-
-    private String decode(final byte[] bytes) {
-        //TODO: MappingsLoader internally decodes with the platform default charset instead of UTF-8
-        String content = new String(bytes, StandardCharsets.UTF_8);
-        return content.startsWith("\uFEFF") ? content.substring(1) : content;
+        ByteArrayInputStream input = new ByteArrayInputStream(bytes);
+        return switch (format) {
+            case PROGUARD -> new ProguardMappingsLoader(input);
+            case RETROGUARD -> new RetroguardMappingsLoader(input);
+            case SRG -> new SrgMappingsLoader(input);
+            case TSRG_V1 -> new TsrgV1MappingsLoader(input);
+            case TSRG_V2 -> new TsrgV2MappingsLoader(input, this.getFromNamespace().get(), this.getToNamespace().get());
+            case TINY_V1 -> new TinyV1MappingsLoader(input, this.getFromNamespace().get(), this.getToNamespace().get());
+            case TINY_V2 -> new TinyV2MappingsLoader(input, this.getFromNamespace().get(), this.getToNamespace().get());
+        };
     }
 
     private void fillSuperMembers(final Logger log, final FileSystem fileSystem, final Mappings mappings) throws IOException {
