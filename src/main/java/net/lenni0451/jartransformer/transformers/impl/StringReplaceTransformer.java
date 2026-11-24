@@ -2,7 +2,7 @@ package net.lenni0451.jartransformer.transformers.impl;
 
 import net.lenni0451.commons.asm.io.ClassIO;
 import net.lenni0451.jartransformer.transformers.Transformer;
-import net.lenni0451.jartransformer.utils.ASMUtils;
+import net.lenni0451.jartransformer.utils.RemapUtils;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.tasks.Input;
@@ -63,7 +63,7 @@ public abstract class StringReplaceTransformer extends Transformer {
 
     private byte[] transformClass(final byte[] bytes, final Map<String, Object> replacements, final Map<String, Object> regexReplacements) {
         ClassNode node = ClassIO.fromBytes(bytes);
-        boolean modified = ASMUtils.mutateStrings(node, s -> {
+        boolean modified = RemapUtils.remapStrings(node, s -> {
             for (Map.Entry<String, Object> entry : replacements.entrySet()) {
                 s = s.replace(entry.getKey(), String.valueOf(entry.getValue()));
             }

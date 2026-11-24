@@ -9,6 +9,19 @@ plugins {
     alias libs.plugins.classTokenReplacer
 }
 
+repositories {
+    maven {
+        name = "Lenni0451 Maven"
+        url = uri("https://maven.lenni0451.net/everything/")
+
+        content {
+            includeModule("net.lenni0451.commons", "asm")
+        }
+    }
+
+    mavenCentral()
+}
+
 gradlePlugin {
     plugins {
         jartransformer {
